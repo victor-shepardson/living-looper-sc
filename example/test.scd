@@ -42,9 +42,12 @@ s.quit
 )
 
 
-~synth.set(\loop, 2)
+~synth.set(\loop, 1)
 
 ~synth.set(\loop, 0)
 
 
 s.quit
+
+s.record
+s.stopRecording

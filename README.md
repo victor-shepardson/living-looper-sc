@@ -1,6 +1,4 @@
-# RAVE for SuperCollider
-
-RAVE autoencoder (https://github.com/acids-ircam/RAVE) UGens for SuperCollider.
+# Living Looper for SuperCollider
 
 ### Requirements
 
@@ -8,7 +6,7 @@ RAVE autoencoder (https://github.com/acids-ircam/RAVE) UGens for SuperCollider.
 - SuperCollider source code
 - libtorch distribution C++ from pytorch.org
 
-scsynth plugin tested on macOS 12.4 (arm64) native and via Rosetta
+scsynth plugin tested on macOS 12.5.1 (arm64)
 
 supernova plugin untested
 
@@ -56,6 +54,6 @@ script with `--help` to see all available options.
 
 ### Acknowledgements
 
-Antoine Caillon's RAVE autoencoder: https://github.com/caillonantoine/RAVE
+Antoine Caillon's RAVE autoencoder: https://github.com/acids-ircam/RAVE
 
 Andrew Fyfe and Bogdan Teleaga's RAVE-audition JUCE plugins: https://github.com/Fyfe93/RAVE-audition
