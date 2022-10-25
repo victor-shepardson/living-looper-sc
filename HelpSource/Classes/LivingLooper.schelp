@@ -1,0 +1,60 @@
+class:: LivingLooper
+summary:: 
+related:: 
+categories:: UGens
+
+description::
+RAVE autoencoder plugin for SuperCollider. This class includes the RAVE encoder, decoder and prior models. For more fine-grained control, see the separate RAVEEncoder, RAVEDecoder and RAVEPrior UGens.
+
+note::
+must use server hardwareBufferSize equal to the RAVE model (typically 2048) for good performance.
+::
+
+note::
+must use server sampleRate equal to the RAVE model (typically 48000) for correct pitch.
+::
+
+note::
+Synth creation will glitch the audio the first time a particular RAVE file is used, as the  model is loaded on the audio thread.
+::
+
+note::
+code::
+// if macOS complains about unknown binaries:
+("xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal
+::
+::
+
+method::new
+
+argument::filename
+String, path to torchscript file containing a RAVE model.
+
+argument::input
+audio input
+
+argument::loop
+loop index control signal. 0 for no loop.
+
+examples::
+
+code::
+(
+// make sure the server can actually boot with the right sampleRate!
+// Server.default.options.inDevice_("BlackHole 16ch");
+// Server.default.options.outDevice_("BlackHole 16ch");
+// Server.default.options.inDevice_("Built-in Microph");
+// Server.default.options.outDevice_("Built-in Output");
+
+s.options.sampleRate = 48000; // the sample rate must match RAVE
+s.options.blockSize = 512;//16; // a low block size within scsynth is fine,
+s.options.hardwareBufferSize = 2048; // but the hardware buffer size needs to match RAVE
+// (to avoid dropouts)
+
+s.waitForBoot{
+	~bus = Bus.new(index:0, numChannels:2);
+}
+)
+
+
+::
