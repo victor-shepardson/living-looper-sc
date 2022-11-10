@@ -1,10 +1,11 @@
 (
 // Server.default.options.inDevice_("BlackHole 16ch");
 // Server.default.options.outDevice_("BlackHole 16ch");
-Server.default.options.inDevice_("Built-in Microph");
-Server.default.options.outDevice_("Built-in Output");
+// Server.default.options.inDevice_("MacBook Pro Microph");
+// Server.default.options.outDevice_("MacBook Pro Output");
+Server.default.options.inDevice_("K-Mix");
+Server.default.options.outDevice_("K-Mix");
 
-// Server.supernova;
 Server.scsynth;
 
 s.options.sampleRate = 48000; // the sample rate must match RAVE
@@ -12,7 +13,7 @@ s.options.blockSize = 512;//16; // a low block size within scsynth is fine,
 s.options.hardwareBufferSize = 2048; // but the hardware buffer size needs to match RAVE
 // (to avoid dropouts)
 
-"OMP_NUM_THREADS".setenv("1"); // jfc
+"OMP_NUM_THREADS".setenv("1"); // this saves a lot of CPU on arm macs, at least
 
 s.waitForBoot{
 	~bus = Bus.new(index:0, numChannels:2);
@@ -25,24 +26,43 @@ s.quit
 ("xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal
 
 (
-~synth = {
+MIDIIn.connectAll;
+MIDIdef.trace//(false)
+MIDIdef.program(\softstep, { arg val, chan, src;
+	// val.postln;
+	~synth.set(\loop, val)
+});
 
-    var out = Limiter.ar(
-        LivingLooper.new(
-			"/Users/victor/RAVE/ll_test.ts", 3,
-            SoundIn.ar(0), // input
-            \loop.kr(0), // loop inddex
-		)
+MIDIdef.noteOn(\softstep_on, { arg val, num, chan, src;
+	~synth.set(\loop, (num - 59))
+});
+
+MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
+	~synth.set(\loop, 0)
+});
+
+// MIDIdef.trace(false)
+
+~synth = {
+	var in = (SoundIn.ar(0)*2).softclip;
+    var out = //Limiter.ar(
+       LivingLooper.new(
+			"/Users/victor/RAVE/ll_test.ts", 5,
+			in,
+            \loop.kr(0), // loop index
+		);
 		// [0]
-	);
+// );
 	// out!2
-	Splay.ar(out);
+	out = (2*out).softclip;
+	out = Splay.ar(out);//+Splay.ar(in);
+	out
 
 }.play(outbus:~bus);
 )
 
 
-~synth.set(\loop, 1)
+~synth.set(\loop, 5)
 
 ~synth.set(\loop, 0)
 

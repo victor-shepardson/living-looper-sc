@@ -1,4 +1,4 @@
-// RAVE.cpp
+// LivingLooper.cpp
 // Victor Shepardson (victor.shepardson@gmail.com)
 
 #include "LivingLooper.hpp"

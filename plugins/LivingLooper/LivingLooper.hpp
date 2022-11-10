@@ -1,4 +1,4 @@
-// RAVE.hpp
+// LivingLooper.hpp
 // Victor Shepardson (victor.shepardson@gmail.com)
 
 // parts of this file are adapted from code by Andrew Fyfe and Bogdan Teleaga
@@ -17,7 +17,7 @@
 
 namespace LivingLooper {
 
-// RAVEModel encapsulates the libtorch parts
+// LLModel encapsulates the libtorch parts
 struct LLModel {
 
   torch::jit::Module model;
