@@ -14,7 +14,7 @@ supernova plugin untested
 
 Clone the project:
 
-    git clone https://github.com/victor-shepardson/living-looper
+    git clone https://github.com/victor-shepardson/living-looper.git
     cd living-looper
     mkdir build
     cd build
