@@ -66,6 +66,7 @@ void LivingLooper::write_zeros_ar(int i) {
 void LivingLooper::next(int nSamples) {
     const float* input = in(filename_length+1);
     const int loop_idx = in0(filename_length+2);
+    const int oneshot = in0(filename_length+3);
 
     int n_loops = model->n_loops;
 
@@ -79,7 +80,7 @@ void LivingLooper::next(int nSamples) {
         bufIdx++;
         if(bufIdx == model->block_size){
             //process block
-            model->forward(inBuffer, loop_idx, outBuffer);
+            model->forward(inBuffer, loop_idx, oneshot, outBuffer);
 
             bufIdx = 0;
             first_block_done = true;

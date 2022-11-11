@@ -91,6 +91,7 @@ struct LLModel {
     inputs_rave.clear();
     inputs_rave.push_back(torch::IValue(0));
     inputs_rave.push_back(torch::ones({1,1,block_size}));
+    inputs_rave.push_back(torch::IValue(0));
 
     this->loaded = true;
   }
@@ -100,13 +101,15 @@ struct LLModel {
     this->model.get_method("reset")(inputs_empty);
   }
 
-  void forward (float* input, int loop_idx, float* outBuffer) {
+  void forward (float* input, int loop_idx, int oneshot, float* outBuffer) {
     c10::InferenceMode guard;
 
     inputs_rave[0] = torch::IValue(loop_idx); 
 
     inputs_rave[1] = torch::from_blob(
       input, block_size).reshape({1, 1, block_size});
+
+    inputs_rave[2] = torch::IValue(oneshot); 
 
     // auto t_start = std::chrono::high_resolution_clock::now();
     const auto y = this->model(inputs_rave).toTensor();
