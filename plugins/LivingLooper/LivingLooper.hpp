@@ -144,9 +144,10 @@ class LivingLooper : public SCUnit {
     static std::map<std::string, LLModel* > models;
 
     float * inBuffer; 
-    size_t bufIdx;
+    size_t inIdx;
 
     float * outBuffer;
+    size_t outIdx;
 
     bool first_block_done;
     int filename_length;
