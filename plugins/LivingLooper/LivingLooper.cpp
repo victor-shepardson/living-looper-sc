@@ -81,22 +81,28 @@ void LivingLooper::next(int nSamples) {
     int hostInIdx = 0;
     int hostOutIdx = 0;
 
+    // std::cout << io_blocks << std::endl;
+
     for (int block = 0; block < io_blocks; ++block){
 
-        for (int i = 0; i < min_block; ++i) {
+        int i;
+        for (i = 0; i < min_block; ++i) {
             inBuffer[inIdx] = input[hostInIdx];
             hostInIdx++;
             inIdx++;
             if(inIdx == model_block){
                 //process block
+                // std::cout << "forward call" << std::endl;
                 model->forward(inBuffer, loop_idx, oneshot, outBuffer);
                 outIdx = inIdx = 0;
                 first_block_done = true;
             }
         }
+        // std::cout << "in samples:" << i << std::endl;
+        // std::cout << "inIdx is:" << inIdx << std::endl;
 
-        for (int i = 0; i < min_block; ++i) {
-              if (model->loaded && first_block_done){
+        for (i = 0; i < min_block; ++i) {
+            if (model->loaded && first_block_done){
                 for (int j=0; j<n_loops; j++){
                     if (outIdx >= model_block*n_loops) {
                         std::cout<<"indexing error"<<std::endl;
@@ -111,8 +117,11 @@ void LivingLooper::next(int nSamples) {
             else {
                 write_zeros_ar(i);
             }
-
         }
+        // std::cout << "out samples:" << i << std::endl;
+        // std::cout << "outIdx is:" << outIdx << std::endl;
+
+
     }
 }
 } // namespace LivingLooper

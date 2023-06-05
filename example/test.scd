@@ -27,7 +27,7 @@ s.quit
 
 (
 MIDIIn.connectAll;
-MIDIdef.trace//(false)
+// MIDIdef.trace//(false)
 MIDIdef.program(\softstep, { arg val, chan, src;
 	// val.postln;
 	~synth.set(\loop, val)
@@ -44,16 +44,19 @@ MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
 // MIDIdef.trace(false)
 
 ~synth = {
-	var in = (SoundIn.ar(0)*2).softclip;
+	// var in = (SoundIn.ar(0)*2).softclip;
+	var in = SoundIn.ar(0);
     var out = //Limiter.ar(
        LivingLooper.new(
-			"/Users/victor/RAVE/ll_test.ts", 5,
+		// "/Users/victor/RAVE/ll_gtr_latents.ts", 5,
+			"/Users/victor/RAVE/ll_gtr_2loops.ts", 2,
 			in,
             \loop.kr(0), // loop index
 		);
 		// [0]
 // );
 	// out!2
+	// out.poll;
 	out = (2*out).softclip;
 	out = Splay.ar(out);//+Splay.ar(in);
 	out
