@@ -11,8 +11,6 @@ namespace LivingLooper {
 
 LivingLooper::LivingLooper() {
     filename_length = in0(0);
-    // std::cout<<filename_length<<std::endl;
-    // char path[filename_length];
     auto path = std::string(filename_length, '!');
     for (int i=0; i<filename_length; i++){
         path[i] = static_cast<char>(in0(i+1));
