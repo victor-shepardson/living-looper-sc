@@ -87,8 +87,8 @@ install(FILES ${TORCH_DLLS} DESTINATION "LivingLooper/ignore")
 # Begin target LivingLooper
 
 set(LL_cpp_files
+    ../living-looper-core/Resampler.hpp
     ../living-looper-core/LLModel.hpp
-    plugins/LivingLooper/LivingLooper.hpp
     plugins/LivingLooper/LivingLooper.hpp
     plugins/LivingLooper/LivingLooper.cpp
 )
