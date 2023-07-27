@@ -20,6 +20,8 @@ LivingLooper : MultiOutUGen {
 	// TODO: is there any way to have a dynamic number of outputs,
 	// i.e. not determined until the synth is created?
 
+	// TODO: named arguments
+
 	*new { |filename, nLoops ...input_args|
 		var file_args = Array.with(
 			filename.size, *filename.asList.collect(_.ascii));

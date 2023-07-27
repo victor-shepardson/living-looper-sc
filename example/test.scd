@@ -2,15 +2,17 @@
 // Server.default.options.inDevice_("BlackHole 16ch");
 // Server.default.options.outDevice_("BlackHole 16ch");
 Server.default.options.inDevice_("MacBook Pro Microph");
-Server.default.options.outDevice_("MacBook Pro Output");
+// Server.default.options.outDevice_("MacBook Pro Output");
+Server.default.options.outDevice_("External Headphones");
 // Server.default.options.inDevice_("K-Mix");
 // Server.default.options.outDevice_("K-Mix");
 
 Server.scsynth;
+// Server.supernova;
 
-s.options.sampleRate = 44100;//48000; // the sample rate must match RAVE
-s.options.blockSize = 64;//512;//16; // a low block size within scsynth is fine,
-s.options.hardwareBufferSize = 64;//2048; // but the hardware buffer size needs to match RAVE
+s.options.sampleRate = 48000;//44100 // best sound if the sample rate matches RAVE
+s.options.blockSize = 64;
+s.options.hardwareBufferSize = 64;
 // (to avoid dropouts)
 
 "OMP_NUM_THREADS".setenv("1"); // this saves a lot of CPU on arm macs, at least
@@ -34,7 +36,10 @@ MIDIdef.program(\softstep, { arg val, chan, src;
 });
 
 MIDIdef.noteOn(\softstep_on, { arg val, num, chan, src;
-	~synth.set(\loop, (num - 59))
+	var idx = num - 60;
+	var mode = (idx/5).floor;
+	idx = idx % 5;
+	~synth.set(\loop, idx + 1)
 });
 
 MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
@@ -49,7 +54,6 @@ MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
     var out = //Limiter.ar(
        LivingLooper.new(
 		"/Users/victor/RAVE/ll_gtr_latents.ts", 5,
-		// "/Users/victor/RAVE/ll_gtr_2loops.ts", 2,
 			in,
             \loop.kr(0), // loop index
             \oneshot.kr(0), // loop mode
@@ -66,9 +70,20 @@ MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
 )
 
 
-~synth.set(\loop, 2)
+~synth.set(\oneshot, 0)
+~synth.set(\oneshot, 1)
+
+~synth.set(\loop, 4)
 
 ~synth.set(\loop, 0)
+
+(
+Routine{
+	~synth.set(\loop, 4);
+	0.1.sleep;
+	~synth.set(\loop, 0);
+	}.play
+)
 
 
 s.quit

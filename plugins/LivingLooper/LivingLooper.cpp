@@ -39,9 +39,11 @@ void LivingLooper::next(int nSamples) {
     const float* input = in(filename_length+1);
     const int loop_idx = in0(filename_length+2);
     const int oneshot = in0(filename_length+3);
+    const int auto_mode = in0(filename_length+4);
 
     model->loop_idx = loop_idx;
     model->oneshot = oneshot;
+    model->auto_mode = auto_mode;
 
     if (!model->loaded){
         RANGE(i, nSamples) write_zeros_ar(i);
