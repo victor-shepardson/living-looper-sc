@@ -1,43 +1,51 @@
-LivingLooperGUI {
-	*new { |filename, input|
-		var out, zs; 
-		var mx;
-		# out, zs = LivingLooper(
-			filename,
-			input,
-			\loop.kr(0), // loop index
-			\oneshot.kr(0), // loop mode
-			\auto.kr(0) // auto trigger mode
-			);
-		// zs are packed in audio signals;
-		// use zs as its own trigger
-		mx = Mix.new(zs.abs);
-		out[0].source.nLatent.do{ |zi|
-			var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
-			SendReply.ar(trig, "/living_looper_monitor", zs, zi)
+LLInfo {
+	var <filename;
+	var <nLoops, <nLatent, <file_args;
+
+	*new { |...args| 
+		^super.newCopyArgs(*args).init;
+	}
+
+	init {
+		var parts;
+		file_args = Array.with(
+			filename.size, *filename.asList.collect(_.ascii));
+
+		// split filename for nLoops nLatent
+		parts = filename.split($.).wrapAt(-2).split($_);
+		nLoops = parts.wrapAt(-2)[1..].asInteger;
+		nLatent = parts.wrapAt(-1)[1..].asInteger;
+
+		filename.isString.not.if{
+			"ERROR: % first argument should be a String (the torchscript filename)
+			note that the filename does *not* support multichannel expansion"
+			.format(this).postln;
 		};
-		// zs.scope;
-		^ out
 	}
 }
+
 
 LivingLooper : MultiOutUGen {
 	var <>nLoops, <>nLatent;
 
 	*new { |filename ...input_args|
-		var file_args = Array.with(
-			filename.size, *filename.asList.collect(_.ascii));
+		var info = LLInfo(filename);
+		var file_args = info.file_args;
+		var nLatent = info.nLatent;
+		var nLoops = info.nLoops;
+		// var file_args = Array.with(
+		// 	filename.size, *filename.asList.collect(_.ascii));
 
-		// split filename for nLoops nLatent
-		var parts = filename.split($.).wrapAt(-2).split($_);
-		var nLoops = parts.wrapAt(-2)[1..].asInteger;
-		var nLatent = parts.wrapAt(-1)[1..].asInteger;
+		// // split filename for nLoops nLatent
+		// var parts = filename.split($.).wrapAt(-2).split($_);
+		// var nLoops = parts.wrapAt(-2)[1..].asInteger;
+		// var nLatent = parts.wrapAt(-1)[1..].asInteger;
 
-		filename.isString.not.if{
-			"ERROR: % first argument should be a String (the RAVE model filename)
-			note that the filename does *not* support multichannel expansion"
-			.format(this).postln;
-		};
+		// filename.isString.not.if{
+		// 	"ERROR: % first argument should be a String (the RAVE model filename)
+		// 	note that the filename does *not* support multichannel expansion"
+		// 	.format(this).postln;
+		// };
 		nLoops.isInteger.not.if{
 			"ERROR: % second argument should be an Integer (the number of loops)
 			note that this does *not* support multichannel expansion"
@@ -67,8 +75,18 @@ LivingLooper : MultiOutUGen {
 	}
 }
 
+// a GUI needs to get nLoops and nLatent,
+// which belong to the UGen / SynthDef;
+// but it needs a reference to a specific synth
+// to send controls to.
+
+// UGen -> SynthDef
+// Synth -> def name, query (), nodeID
 LLGUI {
-	var <>synth, <nLoops, <nLatent;
+	var <filename;
+
+	var <>synth;//, <>ugen;
+	var <>nLoops, <>nLatent;
 
 	var <>debug = false;
 	var <window;
@@ -79,12 +97,45 @@ LLGUI {
 	var <displays;
 	var <latents;
 
+	ar { |input|
+		var out, zs; 
+		var mx;
+		# out, zs = LivingLooper(
+			filename,
+			input,
+			\loop.kr(0), // loop index
+			\oneshot.kr(0), // loop mode
+			\auto.kr(0) // auto trigger mode
+			);
+		// ugen = out[0].source;
+		// nLoops = ugen.nLoops;
+		// nLatent = ugen.nLatent;
+
+		// zs are packed in audio signals;
+		// use zs as its own trigger
+		mx = Mix.new(zs.abs);
+		// TODO: check node id to support multiple instances
+		nLatent.do{ |zi|
+			var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
+			SendReply.ar(trig, "/living_looper_monitor", zs, zi)
+		};
+		// zs.scope;
+		^ out
+	}
+
 	*new { |...args| 
 		^super.newCopyArgs(*args).init;
 	}
 
 	init {
+		var info = LLInfo(filename);
+		nLatent = info.nLatent;
+		nLoops = info.nLoops;
+	}
+
+	map { |synth|
 		// synth: synth containing a LivingLooper UGen
+		this.synth = synth;
 
 		// GUI elements
 		window = Window.new(bounds:Rect(200,250,1000,300))
