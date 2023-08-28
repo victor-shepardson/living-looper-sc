@@ -153,6 +153,7 @@ LLGUI {
 			Button().states_([["erase",Color(0.8,0.8,0.8),Color(0.1,0.05,0.1)]])
 		};
 
+		// TODO: possibly draw all loops into one userview so they can overlap?
 		displays = nLoops.collect{ |loop_idx|
 			UserView()
 				// .background_(Color.rand)
@@ -163,22 +164,12 @@ LLGUI {
 				.drawFunc_({ |view|
 					var bounds = view.bounds.width@view.bounds.height;
 					var pt = 0@0;
+					// TODO: export should rectify latents,
+					// polarity of first latent is hardcoded here
 					var mag = ((0-latents[loop_idx][0]).exp+1).log/3;
 					Pen.color = Color(0,0,0,0.3);
 					Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-					// latents[loop_idx][1..].clump(2).do{ |item,i|
-					// 	var new_pt;
-					// 	Pen.color = Color(
-					// 		(i/4).sin+1/2,
-					// 		(i/5).cos+1/2,
-					// 		(0-i/6).cos+1/2);
-					// 	Pen.moveTo(pt+1/2*bounds);
-					// 	new_pt = Point(*item)/3/(i+1)*mag + pt;
-					// 	new_pt = new_pt / (new_pt.abs+1);
-					// 	Pen.lineTo(new_pt+1/2*bounds);
-					// 	pt = new_pt;
-					// 	Pen.stroke;
-					// }
+					// TODO: fix hardcoded -3, trim off extra latents
 					latents[loop_idx].drop(1).drop(-3).clump(4).do{ |item,i|
 						var new_pt;
 						Pen.color = Color(
@@ -207,11 +198,11 @@ LLGUI {
 					oneshotButton,
 					autoButton,
 				),
-				*nLoops.collect{ |i| VLayout(
+				*nLoops.collect{ |i| [VLayout(
 						displays[i],
 						eraseButtons[i],
 						loopButtons[i]
-				)},
+				), stretch:1]},
 			)
 		);
 
