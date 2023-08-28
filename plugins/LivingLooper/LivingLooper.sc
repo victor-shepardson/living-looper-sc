@@ -33,19 +33,7 @@ LivingLooper : MultiOutUGen {
 		var file_args = info.file_args;
 		var nLatent = info.nLatent;
 		var nLoops = info.nLoops;
-		// var file_args = Array.with(
-		// 	filename.size, *filename.asList.collect(_.ascii));
 
-		// // split filename for nLoops nLatent
-		// var parts = filename.split($.).wrapAt(-2).split($_);
-		// var nLoops = parts.wrapAt(-2)[1..].asInteger;
-		// var nLatent = parts.wrapAt(-1)[1..].asInteger;
-
-		// filename.isString.not.if{
-		// 	"ERROR: % first argument should be a String (the RAVE model filename)
-		// 	note that the filename does *not* support multichannel expansion"
-		// 	.format(this).postln;
-		// };
 		nLoops.isInteger.not.if{
 			"ERROR: % second argument should be an Integer (the number of loops)
 			note that this does *not* support multichannel expansion"
@@ -75,13 +63,7 @@ LivingLooper : MultiOutUGen {
 	}
 }
 
-// a GUI needs to get nLoops and nLatent,
-// which belong to the UGen / SynthDef;
-// but it needs a reference to a specific synth
-// to send controls to.
 
-// UGen -> SynthDef
-// Synth -> def name, query (), nodeID
 LLGUI {
 	var <filename;
 
@@ -107,9 +89,6 @@ LLGUI {
 			\oneshot.kr(0), // loop mode
 			\auto.kr(0) // auto trigger mode
 			);
-		// ugen = out[0].source;
-		// nLoops = ugen.nLoops;
-		// nLatent = ugen.nLatent;
 
 		// zs are packed in audio signals;
 		// use zs as its own trigger
@@ -218,12 +197,6 @@ LLGUI {
 			(latent_idx==(nLatent-1)).if{
 				{displays.do(_.refresh)}.defer;
 			};
-				// displays[i][latent_idx].setSpan(0.5, v/3+0.5);
-			// {values.do{ |v,i|
-			// 	var prev = displays[i].value;
-			// 	prev[latent_idx] = v/3+0.5;
-			// 	displays[i].value = prev; 
-			// }}.defer;
 
 		}, '/living_looper_monitor');
 
