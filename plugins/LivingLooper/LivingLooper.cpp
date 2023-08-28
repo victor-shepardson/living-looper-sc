@@ -35,6 +35,7 @@ void LivingLooper::write_zeros_ar(int i) {
 
 void LivingLooper::next(int nSamples) {
     float buf[MAX_LOOPS];
+    float latent_buf[MAX_LOOPS];
 
     const float* input = in(filename_length+1);
     const int loop_idx = in0(filename_length+2);
@@ -51,11 +52,15 @@ void LivingLooper::next(int nSamples) {
     }
 
     RANGE(i, nSamples) {
-        model->step(input[i], buf);
+        model->step(input[i], buf, latent_buf);
         RANGE(j, model->n_loops) {
             out(j)[i] = buf[j];
         }
+        RANGE(j, model->n_loops) {
+            out(j + model->n_loops)[i] = latent_buf[j];
+        }
     }
+
 }
 } // namespace LivingLooper
 
