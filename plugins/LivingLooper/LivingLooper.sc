@@ -156,11 +156,11 @@ LLGUI {
 							(i/8*6).cos+1/2,
 							(item[3]).sin+1/2);
 						Pen.moveTo(pt+1/2*bounds);
-						new_pt = Point(item[0],item[1])/3/(i/2+1)*mag + pt;
+						new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
 						new_pt = new_pt / (new_pt.abs+1);
 						Pen.lineTo(new_pt+1/2*bounds);
 						pt = new_pt;
-						Pen.width = 15*mag/(i/2+1);
+						Pen.width = 15*mag/(i/3+1);
 						Pen.stroke;
 					}
 				})
