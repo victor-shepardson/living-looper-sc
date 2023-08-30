@@ -7,18 +7,6 @@ description::
 LivingLooper plugin for SuperCollider.
 
 note::
-must use server hardwareBufferSize equal to the RAVE model (typically 2048) for good performance.
-::
-
-note::
-must use server sampleRate equal to the RAVE model (typically 48000) for correct pitch.
-::
-
-note::
-Synth creation will glitch the audio the first time a particular .ts file is used, as the torchscript module is loaded on the audio thread.
-::
-
-note::
 code::
 // if macOS complains about unknown binaries:
 ("xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal
@@ -41,56 +29,86 @@ Loop index control signal. 0 for no loop.
 
 examples::
 
-code::
-(
-// make sure the server can actually boot with the right sampleRate!
-// Server.default.options.inDevice_("BlackHole 16ch");
-// Server.default.options.outDevice_("BlackHole 16ch");
-// Server.default.options.inDevice_("Built-in Microph");
-// Server.default.options.outDevice_("Built-in Output");
+with GUI:
 
-s.options.sampleRate = 48000; // the sample rate must match RAVE
-s.options.blockSize = 512;//16; // a low block size within scsynth is fine,
-s.options.hardwareBufferSize = 2048; // but the hardware buffer size needs to match RAVE
-// (to avoid dropouts)
+code::
+
+(
+
+Server.scsynth;
+// Server.supernova;
+
+s.options.numInputBusChannels = 2;
+s.options.numOutputBusChannels = 2;
+s.options.sampleRate = 48000;//44100 // best sound if the sample rate matches RAVE
+s.options.blockSize = 128;
+s.options.hardwareBufferSize = 128;
+s.options.numWireBufs = 256;
 
 "OMP_NUM_THREADS".setenv("1"); // this saves a lot of CPU on arm macs, at least
+
+// RUN THIS the firs time if you have downloaded the mac version from github:
+// ("xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal;
 
 s.waitForBoot{
 	~bus = Bus.new(index:0, numChannels:2);
 }
 )
 
-// run this block to start the looper
 (
+
+// example MIDI for Softstep 2 controller (note mode):
 MIDIIn.connectAll;
 
-// MIDI program change 0-5
-MIDIdef.program(\ll_midi_pc, { arg val, chan, src;
+MIDIdef.program(\softstep, { arg val, chan, src;
 	~synth.set(\loop, val)
 });
 
-// or notes 60-64
-MIDIdef.noteOn(\ll_midi_on, { arg val, num, chan, src;
-	~synth.set(\loop, (num - 59))
+// top row = erase
+// pad 5 = auto
+MIDIdef.noteOn(\softstep_on, { arg val, num, chan, src;
+	var idx = num-60;
+	var row = (idx/5).floor;
+
+	(idx==4).if{
+		\auto.postln;
+		~synth.set(\auto, 1);
+	}{
+		idx = idx%5+1;
+		(row==1).if{
+			idx = idx * (-1);
+			[\erase, idx].postln;
+			~synth.set(\loop, idx);
+		}{
+			[\record, idx].postln;
+			~synth.set(\loop, idx, \auto, 0);
+		}
+	}
 });
-MIDIdef.noteOff(\ll_midi_off, { arg val, num, chan, src;
+
+MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
 	~synth.set(\loop, 0)
 });
 
+//// make a living looper
+
+// make an LLGUI, which infers nLoops and nLatent from the filename
+~ll = LLGUI(Platform.userExtensionDir++"/LivingLooper/ll_gtr_l4_z32.ts");
+
+// use .ar on the LLGUI *instance* to make a LivingLooper Ugen
 ~synth = {
-	var in = (SoundIn.ar(0)*2).softclip;
-    var out =
-       LivingLooper.new(
-			thisProcess.nowExecutingPath.dirname+/+"ll_test.ts", 5,
-			in,
-            \loop.kr(0), // loop index
-		);
-	out = (2*out).softclip;
-	out = Splay.ar(out);//+Splay.ar(in);
+	var in = SoundIn.ar(0);
+	var out = ~ll.ar(Mix.new(in));
+	out.postln;
+	out = Splay.ar(out);
+	// out = Splay.ar(out)+Splay.ar(in);
 	out
 
-}.play(outbus:~bus);
+}.play(outbus:~bus); //and make an synth
+
+// now associate the LLGUI with the specific synth which it can control
+~ll.map(~synth);
+
 )
 
 ::
