@@ -55,7 +55,7 @@ LivingLooper : MultiOutUGen {
 		// pack latents into audio buffers
 		// assumes that block size >= nLatent
 		latents = nLoops.collect{ |l|
-			OutputProxy('audio', this, (nLoops + l).postln)
+			OutputProxy('audio', this, (nLoops + l))
 		};
 		// assigning channels apparently is important to MultiOutUGen:
 		channels = audio ++ latents;
@@ -66,6 +66,7 @@ LivingLooper : MultiOutUGen {
 
 LLGUI {
 	var <filename;
+	var <l0_sign;
 
 	var <>synth;//, <>ugen;
 	var <>nLoops, <>nLatent;
@@ -75,7 +76,7 @@ LLGUI {
 	var <loopButtons;
 	var <eraseButtons;
 	var <autoButton;
-	var <oneshotButton;
+	var <thruButton;
 	var <displays;
 	var <latents;
 
@@ -86,7 +87,7 @@ LLGUI {
 			filename,
 			input,
 			\loop.kr(0), // loop index
-			\oneshot.kr(0), // loop mode
+			\thru.kr(0), // loop mode
 			\auto.kr(0) // auto trigger mode
 			);
 
@@ -95,8 +96,10 @@ LLGUI {
 		mx = Mix.new(zs.abs);
 		// TODO: check node id to support multiple instances
 		nLatent.do{ |zi|
-			var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
-			SendReply.ar(trig, "/living_looper_monitor", zs, zi)
+			// var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
+			// SendReply.ar(trig, "/living_looper_monitor", zs, zi)
+			SendReply.ar(mx, "/living_looper_monitor", zs, zi);
+			mx = Delay1.ar(mx);
 		};
 		// zs.scope;
 		^ out
@@ -140,16 +143,39 @@ LLGUI {
 				// .animate_(true)
 				.resize_(5)
 				.clearOnRefresh_(false)
+				// // bars
+				// .drawFunc_({ |view|
+				// 	var bounds = view.bounds.width@view.bounds.height;
+				// 	var num = latents[loop_idx].size;
+				// 	// Pen.color = Color(0,0,0,0.3);
+				// 	Pen.color = Color(0.2,0.1,0.2,0.25);
+				// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
+				// 	latents[loop_idx].do{ |item,i|
+				// 		var v = i+1 / (num+2);
+				// 		Pen.color = Color(
+				// 			(i*2pi/3).sin+1/2,
+				// 			(i*2pi/4).cos+1/2,
+				// 			(i*2pi/5).sin+1/2);
+				// 		Pen.moveTo((0.5@v)*bounds);
+				// 		Pen.lineTo(((item/8 + 0.5)@v)*bounds);
+				// 		Pen.width = 3;
+				// 		Pen.stroke;
+				// 	}
+				// })
+				// // pendulum
 				.drawFunc_({ |view|
 					var bounds = view.bounds.width@view.bounds.height;
 					var pt = 0@0;
 					// TODO: export should rectify latents,
 					// polarity of first latent is hardcoded here
-					var mag = ((0-latents[loop_idx][0]).exp+1).log/3;
+					// var mag = 0 - latents[loop_idx][0];
+					var mag = latents[loop_idx][0] * (l0_sign?1);
+					// var mag = latents[loop_idx].squared.sum.sqrt/3-2;
+					var ndrop = (latents[loop_idx].size - 1) % 4;
+					mag = (mag.exp+1).log.sqrt()/2;
 					Pen.color = Color(0,0,0,0.3);
 					Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-					// TODO: fix hardcoded -3, trim off extra latents
-					latents[loop_idx].drop(1).drop(-3).clump(4).do{ |item,i|
+					latents[loop_idx].drop(1).drop(0-ndrop).clump(4).do{ |item,i|
 						var new_pt;
 						Pen.color = Color(
 							(item[2]).sin+1/2,
@@ -160,21 +186,78 @@ LLGUI {
 						new_pt = new_pt / (new_pt.abs+1);
 						Pen.lineTo(new_pt+1/2*bounds);
 						pt = new_pt;
-						Pen.width = 15*mag/(i/3+1);
+						Pen.width = bounds.x/10 * mag/(i/3+1);
 						Pen.stroke;
 					}
 				})
+				// // fixed colors
+				// .drawFunc_({ |view| 
+				// 	var bounds = view.bounds.width@view.bounds.height;
+				// 	var pt = 0@0;
+				// 	// TODO: export should rectify latents,
+				// 	// polarity of first latent is hardcoded here
+				// 	// var mag = 0 - latents[loop_idx][0];
+				// 	var mag = latents[loop_idx][0] * (l0_sign?1);
+				// 	// var mag = latents[loop_idx].squared.sum.sqrt/3-2;
+				// 	var ndrop = (latents[loop_idx].size - 1) % 4;
+				// 	mag = (mag.exp+1).log.sqrt()/2;
+				// 	Pen.color = Color(0,0,0,0.3);
+				// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
+				// 	latents[loop_idx].drop(1).drop(0-ndrop).clump(2).do{ |item,i|
+				// 		var new_pt;
+				// 		Pen.color = Color(
+				// 			(i*2pi/3).cos+1/2,
+				// 			(i*2pi/4).cos+1/2,
+				// 			(i*2pi/5).cos+1/2);
+				// 		Pen.moveTo(pt+1/2*bounds);
+				// 		new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
+				// 		new_pt = new_pt / (new_pt.abs+1);
+				// 		Pen.lineTo(new_pt+1/2*bounds);
+				// 		pt = new_pt;
+				// 		Pen.width = bounds.x/10 * mag/(i/3+1);
+				// 		Pen.stroke;
+				// 	}
+				// })
+				// // blocks
+				// .drawFunc_({ |view|
+				// 	var bounds = view.bounds.width@view.bounds.height;
+				// 	var pt = 0@0;
+				// 	// TODO: export should rectify latents,
+				// 	// polarity of first latent is hardcoded here
+				// 	// var mag = 0 - latents[loop_idx][0];
+				// 	var mag = latents[loop_idx][0] * (l0_sign?1);
+				// 	// var mag = latents[loop_idx].squared.sum.sqrt/3-2;
+				// 	var ndrop = (latents[loop_idx].size - 1) % 4;
+				// 	mag = (mag.exp+1).log.sqrt()/2;
+				// 	Pen.color = Color(0,0,0,0.3);
+				// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
+				// 	latents[loop_idx].drop(1).drop(0-ndrop).clump(2).do{ |item,i|
+				// 		var start, end, len;
+				// 		Pen.color = Color(
+				// 			(i*2pi/3).cos+1/2,
+				// 			(i*2pi/4).cos+1/2,
+				// 			(i*2pi/5).cos+1/2);
+				// 		len = 1/(i+3);
+				// 		start = Point(item[0],item[1])/3*mag;
+				// 		end = start + (len@0);
+				// 		start = start - (len@0);
+				// 		Pen.moveTo(start+1/2*bounds);
+				// 		Pen.lineTo(end+1/2*bounds);
+				// 		Pen.width = bounds.x/10 * mag/(i/3+1);
+				// 		Pen.stroke;
+				// 	}
+				// })
 				;
 		};
 
 		autoButton = Button().states_([["auto"], ["auto", Color.red]]);
-		oneshotButton = CheckBox().string_("one shot");
+		thruButton = CheckBox().string_("thru");
 
 		// GUI layout
 		window.layout_(
 			HLayout(
 				VLayout(
-					oneshotButton,
+					thruButton,
 					autoButton,
 				),
 				*nLoops.collect{ |i| [VLayout(
@@ -190,6 +273,7 @@ LLGUI {
 		OSCdef(\living_looper_monitor, { |msg|
 			var latent_idx = msg[2];
 			var values = msg[3..3+nLoops-1];
+			// msg.postln;
 			// [latent_idx, values].postln;
 			values.do{ |v,loop_idx|
 				latents[loop_idx][latent_idx] = v;
@@ -238,13 +322,13 @@ LLGUI {
 			};
 		};
 
-		oneshotButton.action_{
-			oneshotButton.value.if{
-				debug.if{["LLGUI: oneshot on"].postln};
-				synth!?(_.set(\oneshot, 1))
+		thruButton.action_{
+			thruButton.value.if{
+				debug.if{["LLGUI: thru on"].postln};
+				synth!?(_.set(\thru, 1))
 			}{
-				debug.if{["LLGUI: oneshot off"].postln};
-				synth!?(_.set(\oneshot, 0))
+				debug.if{["LLGUI: thru off"].postln};
+				synth!?(_.set(\thru, 0))
 			}
 		};
 
