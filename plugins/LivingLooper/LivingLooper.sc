@@ -120,7 +120,7 @@ LLGUI {
 		this.synth = synth;
 
 		// GUI elements
-		window = Window.new(bounds:Rect(200,250,1000,300))
+		window = Window.new(bounds:Rect(200,250,1400,400))
 			.background_(Color(0.2,0.1,0.2))
 			.front;
 		
@@ -172,7 +172,7 @@ LLGUI {
 					var mag = latents[loop_idx][0] * (l0_sign?1);
 					// var mag = latents[loop_idx].squared.sum.sqrt/3-2;
 					var ndrop = (latents[loop_idx].size - 1) % 4;
-					mag = (mag.exp+1).log.sqrt()/2;
+					mag = (mag.exp+1).log.sqrt();
 					Pen.color = Color(0,0,0,0.3);
 					Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
 					latents[loop_idx].drop(1).drop(0-ndrop).clump(4).do{ |item,i|
