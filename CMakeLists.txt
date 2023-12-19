@@ -97,6 +97,7 @@ set(LL_sc_files
 )
 set(LL_schelp_files
     HelpSource/Classes/LivingLooper.schelp
+    HelpSource/Classes/LLGUI.schelp
 )
 
 sc_add_server_plugin(

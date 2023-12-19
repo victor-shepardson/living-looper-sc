@@ -1,10 +1,10 @@
 class:: LivingLooper
 summary:: A squishy multichannel quasi-looper based on the RAVE autoencoder.
-related:: RAVE
+related:: LLGUI
 categories:: UGens
 
 description::
-LivingLooper plugin for SuperCollider.
+Core LivingLooper plugin for SuperCollider.
 
 note::
 code::
@@ -18,14 +18,14 @@ method::new
 argument::filename
 String, path to torchscript file containing a LivingLooper.
 
-argument::loops
-Integer, should match the number in the torchscript file.
-
-argument::input
-Audio input
-
 argument::loop
-Loop index control signal. 0 for no loop.
+Loop index control signal. 0 for no loop. Positive integer to record a loop. Negative integer to erase a loop.
+
+argument::thru
+Thru control signal; 0 or 1 controls whether you hear processed input while recording a loop.
+
+argument::auto
+Auto mode control signal. 0 for manual control with the loop signal, 1 for automatic loop switching in response to input audio.
 
 examples::
 
