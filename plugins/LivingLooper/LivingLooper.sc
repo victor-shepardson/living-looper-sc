@@ -118,6 +118,50 @@ LLGUI {
 		id = 99999999999.rand;
 	}
 
+	//// programmatic access to GUI actions
+	erase { |idx| 
+		(idx>0).if{
+			this.eraseButtons[idx-1].mouseDownAction.defer;
+		}{
+			("ERROR: LLGUI: can't erase loop" + idx).postln;
+		}
+	}
+
+	record { |idx| 
+		(idx>0).if{
+			{
+				this.autoButton.valueAction_(0);
+				this.loopButtons[idx-1].value_(0);
+				this.loopButtons[idx-1].mouseDownAction.();
+				this.loopButtons[idx-1].value_(1);
+			}.defer;
+		}{
+			("ERROR: LLGUI: can't record loop" + idx).postln;
+		}
+	}
+
+	end { |idx|
+		(idx>0).if{
+			{
+				this.autoButton.valueAction_(0);
+				this.loopButtons[idx-1].value_(1);
+				this.loopButtons[idx-1].mouseDownAction.();
+				this.loopButtons[idx-1].value_(0);
+			}.defer;
+		}{
+			("ERROR: LLGUI: can't end loop" + idx).postln;
+		}
+	}
+
+	auto {
+		{this.autoButton.valueAction_(1-this.autoButton.value)}.defer;
+	}
+
+	thru {
+		{this.thruButton.valueAction_(1-this.thruButton.value)}.defer;
+	} 
+	//////
+
 	map { |synth|
 		// synth: synth containing a LivingLooper UGen
 		this.synth = synth;
@@ -132,10 +176,13 @@ LLGUI {
 			Button().states_([
 				[(i+1).asString,Color(0.8,0.8,0.8),Color(0.3,0.2,0.3)],
 				["rec",Color(1,0.3,0.3),Color(0.2,0.1,0.2)]])
+				.toolTip_("start/end recording loop"+(i+1));
+
 		};
 		// erase buttons 
-		eraseButtons = nLoops.collect{
+		eraseButtons = nLoops.collect{ |i|
 			Button().states_([["erase",Color(0.8,0.8,0.8),Color(0.1,0.05,0.1)]])
+				.toolTip_("erase loop"+(i+1));
 		};
 
 		// TODO: possibly draw all loops into one userview so they can overlap?
@@ -253,8 +300,13 @@ LLGUI {
 				;
 		};
 
-		autoButton = Button().states_([["auto"], ["auto", Color.red]]);
-		thruButton = CheckBox().string_("thru");
+		autoButton = Button()
+			.states_([["auto"], ["auto", Color.red]])
+			.toolTip_("automatically record loops in response to input");
+		thruButton = Button()
+			.states_([["thru"], ["thru", Color.red]])
+			.toolTip_("hear processed input while recording a loop");
+		// thruButton = CheckBox().string_("thru");
 
 		// GUI layout
 		window.layout_(
@@ -329,7 +381,7 @@ LLGUI {
 		};
 
 		thruButton.action_{
-			thruButton.value.if{
+			(thruButton.value==1).if{
 				debug.if{["LLGUI: thru on"].postln};
 				synth!?(_.set(\thru, 1))
 			}{
