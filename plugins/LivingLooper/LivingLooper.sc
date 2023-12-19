@@ -68,6 +68,8 @@ LLGUI {
 	var <filename;
 	var <l0_sign;
 
+	var <>id;
+
 	var <>synth;//, <>ugen;
 	var <>nLoops, <>nLatent;
 
@@ -98,7 +100,7 @@ LLGUI {
 		nLatent.do{ |zi|
 			// var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
 			// SendReply.ar(trig, "/living_looper_monitor", zs, zi)
-			SendReply.ar(mx, "/living_looper_monitor", zs, zi);
+			SendReply.ar(mx, "/living_looper_monitor_"++this.id, zs, zi);
 			mx = Delay1.ar(mx);
 		};
 		// zs.scope;
@@ -113,6 +115,7 @@ LLGUI {
 		var info = LLInfo(filename);
 		nLatent = info.nLatent;
 		nLoops = info.nLoops;
+		id = 99999999999.rand;
 	}
 
 	map { |synth|
@@ -120,7 +123,7 @@ LLGUI {
 		this.synth = synth;
 
 		// GUI elements
-		window = Window.new(bounds:Rect(200,250,1400,400))
+		window = Window.new(bounds:Rect(200,250,1200,300))
 			.background_(Color(0.2,0.1,0.2))
 			.front;
 		
@@ -270,10 +273,11 @@ LLGUI {
 
 		latents = (0!nLatent)!nLoops;
 
-		OSCdef(\living_looper_monitor, { |msg|
+		OSCdef(\living_looper_monitor_++this.id, { |msg|
+			// [msg[1],this.synth.nodeID].postln;
+			// (msg[1]==this.synth.nodeID).if{
 			var latent_idx = msg[2];
 			var values = msg[3..3+nLoops-1];
-			// msg.postln;
 			// [latent_idx, values].postln;
 			values.do{ |v,loop_idx|
 				latents[loop_idx][latent_idx] = v;
@@ -281,13 +285,14 @@ LLGUI {
 			(latent_idx==(nLatent-1)).if{
 				{displays.do(_.refresh)}.defer;
 			};
-
-		}, '/living_looper_monitor');
+			// }
+		}, '/living_looper_monitor_'++this.id);
 
 		// GUI functions
 
 		//
 		loopButtons.do{ |b,i| b.mouseDownAction_{ 
+			\hello.postln;
 			// auto mode off
 			(autoButton.value > 0).if{autoButton.valueAction_(0)};
 
@@ -310,6 +315,7 @@ LLGUI {
 			synth!?(_.set(\loop, -1-i));
 			// any recordings stop
 			loopButtons.do{ |b| b.value_(0)};
+			displays[i].clearDrawing;
 		}};
 
 		autoButton.action_{
