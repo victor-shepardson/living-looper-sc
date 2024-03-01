@@ -1,3 +1,7 @@
+//// run this line the first time after installing on macOS:
+("/usr/bin/xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal
+////
+
 //// server setup
 (
 // Server.default.options.inDevice_("UMC404HD 192k");
@@ -18,12 +22,6 @@ s.waitForBoot{
 	~bus = Bus.new(index:0, numChannels:6);
 })
 ////
-
-
-//// run this line the first time after installing on macOS:
-("xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal
-////
-
 
 //// run the living looper
 (

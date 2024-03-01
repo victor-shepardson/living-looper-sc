@@ -9,7 +9,7 @@ Core LivingLooper plugin for SuperCollider.
 note::
 code::
 // if macOS complains about unknown binaries:
-("xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal
+("/usr/bin/xattr -d -r com.apple.quarantine"+Platform.userExtensionDir.quote++"/LivingLooper/").runInTerminal
 ::
 ::
 
@@ -93,7 +93,7 @@ MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
 //// make a living looper
 
 // make an LLGUI, which infers nLoops and nLatent from the filename
-~ll = LLGUI(Platform.userExtensionDir++"/LivingLooper/ll_gtr_l4_z32.ts");
+~ll = LLGUI(Platform.userExtensionDir++"/LivingLooper/ll_gtr48lr_l4_z26.ts");
 
 // use .ar on the LLGUI *instance* to make a LivingLooper Ugen
 ~synth = {
