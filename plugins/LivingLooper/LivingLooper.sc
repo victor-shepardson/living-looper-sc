@@ -25,47 +25,50 @@ LLInfo {
 }
 
 
-LivingLooper : MultiOutUGen {
-	var <>nLoops, <>nLatent;
+// LivingLooper {
+// 	var <>nLoops, <>nLatent;
 
-	*new { |filename ...input_args|
-		var info = LLInfo(filename);
-		var file_args = info.file_args;
-		var nLatent = info.nLatent;
-		var nLoops = info.nLoops;
+// 	*new { |filename ...input_args|
+// 		var info = LLInfo(filename);
+// 		// var file_args = info.file_args;
+// 		var nLatent = info.nLatent;
+// 		var nLoops = info.nLoops;
+// 		var name = filename.asSymbol; //TODO
 
-		nLoops.isInteger.not.if{
-			"ERROR: % second argument should be an Integer (the number of loops)
-			note that this does *not* support multichannel expansion"
-			.format(this).postln;
-		};
-		^this.multiNew('audio', nLoops, nLatent, *(file_args++input_args));
-	}
-	checkInputs {
-		/* TODO */
-		^this.checkValidInputs;
-	}
-	init { arg nLoops, nLatent ...theInputs;
-		var audio, latents;
-		this.nLoops = nLoops; this.nLatent = nLatent;
-		inputs = theInputs;
-		audio = nLoops.collect{ |i|
-			OutputProxy('audio', this, i)
-		};
-		// pack latents into audio buffers
-		// assumes that block size >= nLatent
-		latents = nLoops.collect{ |l|
-			OutputProxy('audio', this, (nLoops + l))
-		};
-		// assigning channels apparently is important to MultiOutUGen:
-		channels = audio ++ latents;
-		^ [audio, latents]
-	}
-}
+// 		NN.load(name, filename);
+
+// 		nLoops.isInteger.not.if{
+// 			"ERROR: % second argument should be an Integer (the number of loops)
+// 			note that this does *not* support multichannel expansion"
+// 			.format(this).postln;
+// 		};
+// 		^NN.ar(name, )
+// 	}
+// 	checkInputs {
+// 		/* TODO */
+// 		^this.checkValidInputs;
+// 	}
+// 	init { arg nLoops, nLatent ...theInputs;
+// 		var audio, latents;
+// 		this.nLoops = nLoops; this.nLatent = nLatent;
+// 		inputs = theInputs;
+// 		audio = nLoops.collect{ |i|
+// 			OutputProxy('audio', this, i)
+// 		};
+// 		// pack latents into audio buffers
+// 		// assumes that block size >= nLatent
+// 		latents = nLoops.collect{ |l|
+// 			OutputProxy('audio', this, (nLoops + l))
+// 		};
+// 		// assigning channels apparently is important to MultiOutUGen:
+// 		channels = audio ++ latents;
+// 		^ [audio, latents]
+// 	}
+// }
 
 
 LLGUI {
-	var <filename;
+	var <name;
 	var <l0_sign;
 
 	var <>id;
@@ -82,16 +85,28 @@ LLGUI {
 	var <displays;
 	var <latents;
 
-	ar { |input|
+	ar { |input, blockSize=0|
 		var out, zs; 
 		var mx;
-		# out, zs = LivingLooper(
-			filename,
+		var method = NN(name, \forward_with_latents);
+		var out_zs = method.ar(
 			input,
-			\loop.kr(0), // loop index
-			\thru.kr(0), // loop mode
-			\auto.kr(0) // auto trigger mode
-			);
+			blockSize,
+			debug:1,
+			attributes:[
+				loop_index: \loop.kr(0), // loop index
+				thru: \thru.kr(0), // loop mode
+				auto: \auto.kr(0) // auto trigger mode
+			]);
+		out = out_zs.at((0..method.numOutputs/2-1));
+		zs = out_zs.at((method.numOutputs/2..method.numOutputs-1));
+		// # out, zs = LivingLooper(
+		// 	filename,
+		// 	input,
+		// 	\loop.kr(0), // loop index
+		// 	\thru.kr(0), // loop mode
+		// 	\auto.kr(0) // auto trigger mode
+		// 	);
 
 		// zs are packed in audio signals;
 		// use zs as its own trigger
@@ -112,9 +127,9 @@ LLGUI {
 	}
 
 	init {
-		var info = LLInfo(filename);
-		nLatent = info.nLatent;
-		nLoops = info.nLoops;
+		// var info = LLInfo(filename);
+		nLatent = NN(name, \encode).numOutputs;
+		nLoops = NN(name, \forward).numOutputs;
 		id = 99999999999.rand;
 	}
 
@@ -344,7 +359,7 @@ LLGUI {
 
 		//
 		loopButtons.do{ |b,i| b.mouseDownAction_{ 
-			\hello.postln;
+			// \hello.postln;
 			// auto mode off
 			(autoButton.value > 0).if{autoButton.valueAction_(0)};
 
