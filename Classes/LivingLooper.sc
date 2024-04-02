@@ -1,71 +1,59 @@
-LLInfo {
-	var <filename;
-	var <nLoops, <nLatent, <file_args;
+LivingLooper {
+	*load { |name, filename|
 
-	*new { |...args| 
-		^super.newCopyArgs(*args).init;
+		var sources = (
+			vrs_guitar_latest: "http://localhost:8000/ll_gtr48lr_l4_z26.ts"
+		);
+
+		filename.isNil.if{
+			var url = sources.at(name);
+			url.notNil.if{
+				var modelDir = PathName(PathName(
+					LivingLooper.filenameSymbol.asString
+					).parentPath).parentPath +/+ "models";
+				var cond = Condition.new;
+				filename = modelDir.postln +/+ (name++".ts");
+				"downloading % from % to %".format(name, url, filename).postln;
+				forkIfNeeded{
+					Download(
+						url,
+						filename,
+						finishedFunc: {cond.test=true; cond.signal},
+						errorFunc: {Error("download '%' failed".format(url)).throw},
+						progressFunc: { |bt, br| "%: % of % bytes".format(name, br, bt).postln; }
+					);
+					// \waiting.postln;
+					cond.wait;
+					// \done.postln;
+				};
+			}{
+				"Living Looper model "++name++"not recognized".postln;
+				"available models: vrs_guitar_latest";
+			};
+		};
+		"loading % from %".format(name, filename).postln;
+		NN.load(name, filename);
+		NN(name).describe;
 	}
 
-	init {
-		var parts;
-		file_args = Array.with(
-			filename.size, *filename.asList.collect(_.ascii));
+	*ar { |name, input, loop=0, thru=0, auto=0, blockSize=0|
+		var out, zs; 
+		var method = NN(name, \forward_with_latents);
+		var out_zs = method.ar(
+			input,
+			blockSize,
+			debug:1,
+			attributes:[
+				loop_index: loop, // loop index
+				thru: thru, // loop mode
+				auto: auto // auto trigger mode
+			]);
+		out = out_zs.at((0..method.numOutputs/2-1));
+		zs = out_zs.at((method.numOutputs/2..method.numOutputs-1));
 
-		// split filename for nLoops nLatent
-		parts = filename.split($.).wrapAt(-2).split($_);
-		nLoops = parts.wrapAt(-2)[1..].asInteger;
-		nLatent = parts.wrapAt(-1)[1..].asInteger;
-
-		filename.isString.not.if{
-			"ERROR: % first argument should be a String (the torchscript filename)
-			note that the filename does *not* support multichannel expansion"
-			.format(this).postln;
-		};
+		^ [out, zs]
 	}
 }
-
-
-// LivingLooper {
-// 	var <>nLoops, <>nLatent;
-
-// 	*new { |filename ...input_args|
-// 		var info = LLInfo(filename);
-// 		// var file_args = info.file_args;
-// 		var nLatent = info.nLatent;
-// 		var nLoops = info.nLoops;
-// 		var name = filename.asSymbol; //TODO
-
-// 		NN.load(name, filename);
-
-// 		nLoops.isInteger.not.if{
-// 			"ERROR: % second argument should be an Integer (the number of loops)
-// 			note that this does *not* support multichannel expansion"
-// 			.format(this).postln;
-// 		};
-// 		^NN.ar(name, )
-// 	}
-// 	checkInputs {
-// 		/* TODO */
-// 		^this.checkValidInputs;
-// 	}
-// 	init { arg nLoops, nLatent ...theInputs;
-// 		var audio, latents;
-// 		this.nLoops = nLoops; this.nLatent = nLatent;
-// 		inputs = theInputs;
-// 		audio = nLoops.collect{ |i|
-// 			OutputProxy('audio', this, i)
-// 		};
-// 		// pack latents into audio buffers
-// 		// assumes that block size >= nLatent
-// 		latents = nLoops.collect{ |l|
-// 			OutputProxy('audio', this, (nLoops + l))
-// 		};
-// 		// assigning channels apparently is important to MultiOutUGen:
-// 		channels = audio ++ latents;
-// 		^ [audio, latents]
-// 	}
-// }
-
 
 LLGUI {
 	var <name;
@@ -88,26 +76,10 @@ LLGUI {
 	ar { |input, blockSize=0|
 		var out, zs; 
 		var mx;
-		var method = NN(name, \forward_with_latents);
-		var out_zs = method.ar(
-			input,
-			blockSize,
-			debug:1,
-			attributes:[
-				loop_index: \loop.kr(0), // loop index
-				thru: \thru.kr(0), // loop mode
-				auto: \auto.kr(0) // auto trigger mode
-			]);
-		out = out_zs.at((0..method.numOutputs/2-1));
-		zs = out_zs.at((method.numOutputs/2..method.numOutputs-1));
-		// # out, zs = LivingLooper(
-		// 	filename,
-		// 	input,
-		// 	\loop.kr(0), // loop index
-		// 	\thru.kr(0), // loop mode
-		// 	\auto.kr(0) // auto trigger mode
-		// 	);
-
+		# out, zs = LivingLooper.ar(
+			name, input, 
+			\loop.kr(0), \thru.kr(0), \auto.kr(0),
+			blockSize);
 		// zs are packed in audio signals;
 		// use zs as its own trigger
 		mx = Mix.new(zs.abs);
@@ -127,7 +99,6 @@ LLGUI {
 	}
 
 	init {
-		// var info = LLInfo(filename);
 		nLatent = NN(name, \encode).numOutputs;
 		nLoops = NN(name, \forward).numOutputs;
 		id = 99999999999.rand;
