@@ -78,8 +78,8 @@ LLGUI {
 		var mx;
 		# out, zs = LivingLooper.ar(
 			name, input, 
-			\loop.kr(0), \thru.kr(0), \auto.kr(0),
-			blockSize);
+			loop:\loop.kr(0), thru:\thru.kr(0), auto:\auto.kr(0),
+			blockSize:blockSize);
 		// zs are packed in audio signals;
 		// use zs as its own trigger
 		mx = Mix.new(zs.abs);
