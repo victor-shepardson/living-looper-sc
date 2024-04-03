@@ -10,7 +10,7 @@
 s.options.numInputBusChannels = 2;
 s.options.numOutputBusChannels = 6; // stereo out + quad out for recording
 
-s.options.sampleRate = 48000; // best sound if the sample rate matches RAVE
+s.options.sampleRate = 48000; //sample rate should match the Living Looper model
 s.options.blockSize = 64;
 s.options.hardwareBufferSize = 64;
 s.options.numWireBufs = 256;
@@ -19,17 +19,16 @@ s.options.numWireBufs = 256;
 "OMP_NUM_THREADS".setenv("1"); // (best setting for apple silicon)
 
 s.waitForBoot{
-	~bus = Bus.new(index:0, numChannels:6);
-})
-////
+
+// ouptut bus with stereo + 4 loops
+~bus = Bus.new(index:0, numChannels:6);
+
+LivingLooper.load(\example, \vrs_guitar_latest);
 
 //// run the living looper
-(
 MIDIIn.connectAll;
-
 // this MIDI mapping is for a SoftStep 2 controller in note mode,
 // and a Living Looper with 4 loops.
-
 // bottom row buttons 1-4: momentary switch to record each loop
 // top row buttons 6-9: erase loops 1-4
 // pad 5 = toggle auto mode
@@ -71,9 +70,9 @@ MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
 
 // make an LLGUI, which infers nLoops and nLatent from the filename
 // choose the default 4-loop guitar model
-~ll = LLGUI(Platform.userExtensionDir++"/LivingLooper/ll_gtr48lr_l4_z26.ts", 1);
+~ll = LLGUI(\example);
 
-// use .ar on the LLGUI *instance* to make a LivingLooper Ugen
+// use .ar on the LLGUI *instance* to make a LivingLooper Ugen with control inputs
 ~synth = {
 	var loops, mix;
 	var in = SoundIn.ar(0);
@@ -87,7 +86,10 @@ MIDIdef.noteOff(\softstep_off, { arg val, num, chan, src;
 
 // print stuff when buttons are pressed
 ~ll.debug_(true);
-)
+
+})
+
+
 ////
 
 s.record(bus:0, numChannels:8); //record main input, aux input, stereo mix, 4 loops

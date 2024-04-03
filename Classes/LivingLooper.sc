@@ -1,18 +1,25 @@
 LivingLooper {
-	*load { |name, filename|
+	*load { |name, source, forceDownload=false|
+		var filename;
 
-		var sources = (
-			vrs_guitar_latest: "http://localhost:8000/ll_gtr48lr_l4_z26.ts"
-		);
+		// var sources = (
+			// vrs_guitar_latest: "http://localhost:8000/ll_gtr48lr_l4_z26.ts"
+		// );
 
-		filename.isNil.if{
-			var url = sources.at(name);
-			url.notNil.if{
-				var modelDir = PathName(PathName(
-					LivingLooper.filenameSymbol.asString
-					).parentPath).parentPath +/+ "models";
-				var cond = Condition.new;
-				filename = modelDir.postln +/+ (name++".ts");
+		var sources = thisProcess.interpreter.executeFile(PathName(
+				LivingLooper.filenameSymbol.asString
+				).parentPath +/+ "sources.scd");
+
+		var url = sources.at(source);
+		url.notNil.if{
+			// get model by name from remote source
+			var modelDir = PathName(PathName(
+				LivingLooper.filenameSymbol.asString
+				).parentPath).parentPath +/+ "models";
+			var cond = Condition.new;
+			// filename = modelDir.postln +/+ (name++".ts");
+			filename = modelDir +/+ PathName(url).fileName;
+			(forceDownload || File.exists(filename).not).if{
 				"downloading % from % to %".format(name, url, filename).postln;
 				forkIfNeeded{
 					Download(
@@ -22,14 +29,20 @@ LivingLooper {
 						errorFunc: {Error("download '%' failed".format(url)).throw},
 						progressFunc: { |bt, br| "%: % of % bytes".format(name, br, bt).postln; }
 					);
-					// \waiting.postln;
 					cond.wait;
-					// \done.postln;
-				};
+				}
+			}
+		}{
+			// assume source is a local filename
+			File.exists(source).if{
+				filename = source;
 			}{
-				"Living Looper model "++name++"not recognized".postln;
-				"available models: vrs_guitar_latest";
-			};
+				Error(
+					"Living Looper model '"++source++"' not recognized\n"
+					++"check your file path or try one of these "
+					++"available models: %".format(sources.keys)
+					).throw;
+			}
 		};
 		"loading % from %".format(name, filename).postln;
 		NN.load(name, filename);
@@ -61,7 +74,7 @@ LLGUI {
 
 	var <>id;
 
-	var <>synth;//, <>ugen;
+	var <>synth;
 	var <>nLoops, <>nLatent;
 
 	var <>debug = false;
@@ -83,7 +96,6 @@ LLGUI {
 		// zs are packed in audio signals;
 		// use zs as its own trigger
 		mx = Mix.new(zs.abs);
-		// TODO: check node id to support multiple instances
 		nLatent.do{ |zi|
 			// var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
 			// SendReply.ar(trig, "/living_looper_monitor", zs, zi)
