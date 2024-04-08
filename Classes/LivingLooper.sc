@@ -1,3 +1,205 @@
+LLMIDIMapper {
+	var <>toggle; //Button to enable MIDI mapping
+	var <>save_button;
+	var <>load_button; //Buttons to open file dialog
+	var <>buttons; //Dictionary of name -> Button
+	var <>map; //Dictionary of MIDI info -> name
+	var <>target; //current target of MIDI mapping
+
+	var <>color_text;
+	var <>color_bg;
+
+	*new { |...args|
+		^super.newCopyArgs(*args).init;
+	}
+
+	gui {
+		var label = StaticText()
+		.string_("MIDI map:").stringColor_(color_text);
+		^HLayout(label, this.toggle, this.save_button, this.load_button)
+	}
+
+	button { |name, parent, bounds|
+		^LLMIDIButton(this, name, parent, bounds);
+	}
+
+	get_text { |key, text|
+		var miditext = "%:% ch:% port:%".format(*key);
+		^ text ++ " (%)".format(miditext);
+	}
+
+	set_states {
+		// reset all
+		this.buttons.do{ |button| 
+			var extra_text = (this.toggle.value==1).if{" (...)"}{""};
+			button.states_(button.initial_states.collect{ |state| 
+				[state[0]++extra_text] ++ state[1..]
+			}, ephemeral:true)
+		};
+
+		// then set all in map
+		this.map.pairsDo{ |key, name|
+			var button = this.buttons.at(name);
+			button.states_(button.initial_states.collect{ |state| 
+				[this.get_text(key, state[0])] ++ state[1..]
+			}, ephemeral:true)
+		}
+	}
+
+	add { |key, target|
+		var button, miditext;
+		// map MIDI to name
+		this.map.add(key -> target);
+		this.map.postln;
+		// modify button text
+		this.set_states;
+	}
+
+	match { |key|
+		var name = this.map.at(key);
+		^this.buttons.at(name);
+	}
+
+	init {
+		this.color_text = Color(0.9,0.9,0.9);
+		this.color_bg = Color(0.5,0.5,0.5);
+		this.buttons = Dictionary.new;
+		this.map = Dictionary.new;
+
+		// global MIDI map toggle -- visually changes all MIDIButtons
+		this.toggle = Button()
+		.states_([
+			["start", this.color_text, this.color_bg],
+			["done", this.color_text, Color(0.5,0.5,0.9)]])
+		.action_{
+			// update button appearances
+			this.set_states;
+		};
+
+		this.save_button = Button()
+		.states_([["save", color_text, color_bg]])
+		.action_{
+			Dialog.savePanel({ |path|
+				this.map.writeArchive(path);
+			})
+		};
+
+		this.load_button = Button()
+		.states_([["load", color_text, color_bg]])
+		.action_{
+			Dialog.openPanel({ |path|
+				"loading...".postln;
+				this.map = Object.readArchive(path).postln;
+				this.set_states;
+			})
+		};
+
+		// TODO: handlers for other msgTypes
+		MIDIdef(\LLMIDIMapperOn, { |val, num, chan, src|
+			var key = [\note, num, chan, src];
+			// noteOn can trigger MIDI mapping
+			// noteOn sets button to state 1
+			{
+				(this.toggle.value==1).if{
+					// when mapping is toggled on, a MIDI handler associates 
+					// incoming messages type/value/chan/src with the target button
+					this.add(key, this.target);
+				}{
+					// when toggled off, a MIDI handler dispatches mapped message type/value/src to buttons
+					var button = this.match(key);
+					button.notNil.if{
+						button.valueAction_(1);
+					}
+				}
+			}.defer;
+		}, msgType:\noteOn).permanent_(true);
+
+		MIDIdef(\LLMIDIMapperOff, { |val, num, chan, src|
+			var key = [\note, num, chan, src];
+			// noteOff sets button to state 0
+			{
+				var button = this.match(key);
+				button.notNil.if{
+					button.valueAction_(0);
+				}
+			}.defer;
+		}, msgType:\noteOff).permanent_(true);
+
+		MIDIdef(\LLMIDIMapperControl, { |val, num, chan, src|
+			var key = [\control, num, chan, src];
+			// controlChange can trigger MIDI mapping
+			// controlChange toggles button 
+			{
+				(this.toggle.value==1).if{
+					// when mapping is toggled on, a MIDI handler associates 
+					// incoming messages type/value/chan/src with the target button
+					this.add(key, this.target);
+				}{
+					// when toggled off, a MIDI handler dispatches mapped message type/value/src to buttons
+					var button = this.match(key);
+					button.notNil.if{
+						button.valueAction_(button.value + 1 % button.states.size);
+					}
+				}
+			}.defer;
+		}, msgType:\control).permanent_(true);
+
+		MIDIdef(\LLMIDIMapperProgram, { |num, chan, src|
+			var key = [\program, num, chan, src];
+			// controlChange can trigger MIDI mapping
+			// controlChange toggles button 
+			{
+				(this.toggle.value==1).if{
+					// when mapping is toggled on, a MIDI handler associates 
+					// incoming messages type/value/chan/src with the target button
+					this.add(key, this.target);
+				}{
+					// when toggled off, a MIDI handler dispatches mapped message type/value/src to buttons
+					var button = this.match(key);
+					button.notNil.if{
+						button.valueAction_(button.value + 1 % button.states.size);
+					}
+				}
+			}.defer;
+		}, msgType:\program).permanent_(true);
+	}
+
+
+}
+
+LLMIDIButton : Button {
+	var <>mapper; 
+	var <>name;
+	var <>initial_states;
+
+	*new { |mapper, name, parent, bounds| 
+		var inst = super.new(parent, bounds).mapper_(mapper).name_(name);
+		// [parent, bounds, mapper, name].postln;
+		mapper.buttons.add(name -> inst);
+		^inst
+	}
+
+	states_{ |states, ephemeral=false| 
+		ephemeral.not.if{this.initial_states = states};
+		^super.states_(states)
+	}
+
+	action_{ |fn|
+		^super.action_{ |...args|
+			// when toggled on, buttons are disabled, 
+			// and clicking a button registers it as the target of MIDI mapping
+			(this.mapper.toggle.value==1).if{
+				this.value = this.value - 1 % this.states.size;
+				this.mapper.target = this.name;
+				"mapping '%'...".format(this.name).postln;
+			}{
+				fn.(*args)
+			}
+		}
+	}
+
+}
+
 LivingLooper {
 	*load { |name, source, forceDownload=false|
 		var filename;
