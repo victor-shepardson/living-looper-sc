@@ -1,4 +1,121 @@
+LLTheme {
+	var <color_bg, <color_fg, <color_dark, <color_text, <color_alert, <color_highlight;
+	*new { |...args|
+		^super.newCopyArgs(*args).init;
+	}
+
+	init {
+		color_bg = color_bg ? Color(0.2,0.1,0.2);
+		color_fg = color_fg ? Color(0.3,0.2,0.3);
+		color_dark = color_dark ? Color(0.1,0.05,0.1);
+		color_text = color_text ? Color(0.8,0.8,0.8);
+		color_alert = color_alert ? Color(1,0.3,0.3);
+		color_highlight = color_highlight ? Color(0.5,0.5,0.9);
+	}
+}
+
+LLServerControl {
+	var <>server;
+	var <on_boot;
+	var <theme;
+	var <boot_button, <rate_box, <hblock_box, <cblock_box, <indevice_drop, <outdevice_drop;
+
+	*new { |...args|
+		^super.newCopyArgs(*args).init;
+	}
+
+	init {
+		server = server ? Server.default;
+		theme = theme ? LLTheme.new;
+		boot_button = Button.new
+		.states_([
+			["boot server",theme.color_text,theme.color_fg],
+			["quit server",theme.color_alert,theme.color_bg]])
+		.value_(server.serverRunning.asInteger)
+		.toolTip_("boot server")
+		.action_{
+			(boot_button.value==1).if{
+				server.options.sampleRate = rate_box.value.postln;
+				server.options.hardwareBufferSize = hblock_box.value.postln;
+				server.options.blockSize = cblock_box.value.postln;
+				server.options.inDevice = indevice_drop.item.postln;
+				server.options.outDevice = outdevice_drop.item.postln;
+				server.waitForBoot{
+					on_boot.value
+				};
+			}{
+				server.quit;
+			}
+		};
+
+		rate_box = NumberBox()
+		.valueAction_(48000)
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.normalColor_(theme.color_text)
+		.typingColor_(theme.color_alert)
+		.toolTip_("set sampling rate (requires server reboot)");
+
+
+		hblock_box = NumberBox()
+		.valueAction_(128)
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.normalColor_(theme.color_text)
+		.typingColor_(theme.color_alert)
+		.toolTip_("set hardware block size (requires server reboot)");
+
+		cblock_box = NumberBox()
+		.valueAction_(128)
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.normalColor_(theme.color_text)
+		.typingColor_(theme.color_alert)
+		.toolTip_("set supercollider control block size (requires server reboot)");
+
+		indevice_drop = PopUpMenu()
+		.items_(ServerOptions.inDevices)
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.toolTip_("set input device (requires server reboot)")
+		;
+
+		outdevice_drop = PopUpMenu()
+		.items_(ServerOptions.outDevices)
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.toolTip_("set output device (requires server reboot)")
+		;
+
+		^this
+	}
+
+	label { |item, text|
+		^VLayout(
+			StaticText().string_(text).stringColor_(theme.color_text),
+			item
+		)
+	}
+
+	gui {
+		^VLayout(
+			HLayout(
+				this.label(indevice_drop, "input device"),
+				this.label(outdevice_drop, "output device")
+			),
+			HLayout(
+				this.label(rate_box, "sampling rate"),
+				this.label(hblock_box, "hardware block"),
+				this.label(cblock_box, "control block"),
+			),
+			boot_button,
+		)
+	}
+}
+
+// TODO excessive this
 LLMIDIMapper {
+	var <theme;
 	var <>toggle; //Button to enable MIDI mapping
 	var <>save_button;
 	var <>load_button; //Buttons to open file dialog
@@ -6,16 +123,13 @@ LLMIDIMapper {
 	var <>map; //Dictionary of MIDI info -> name
 	var <>target; //current target of MIDI mapping
 
-	var <>color_text;
-	var <>color_bg;
-
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
 	}
 
 	gui {
 		var label = StaticText()
-		.string_("MIDI map:").stringColor_(color_text);
+		.string_("MIDI map:").stringColor_(theme.color_text);
 		^HLayout(label, this.toggle, this.save_button, this.load_button)
 	}
 
@@ -61,23 +175,22 @@ LLMIDIMapper {
 	}
 
 	init {
-		this.color_text = Color(0.9,0.9,0.9);
-		this.color_bg = Color(0.5,0.5,0.5);
+		theme = theme ? LLTheme.new;
 		this.buttons = Dictionary.new;
 		this.map = Dictionary.new;
 
 		// global MIDI map toggle -- visually changes all MIDIButtons
 		this.toggle = Button()
 		.states_([
-			["start", this.color_text, this.color_bg],
-			["done", this.color_text, Color(0.5,0.5,0.9)]])
+			["start", theme.color_text, theme.color_fg],
+			["done", theme.color_text, theme.color_highlight]])
 		.action_{
 			// update button appearances
 			this.set_states;
 		};
 
 		this.save_button = Button()
-		.states_([["save", color_text, color_bg]])
+		.states_([["save", theme.color_text, theme.color_fg]])
 		.action_{
 			Dialog.savePanel({ |path|
 				this.map.writeArchive(path);
@@ -85,7 +198,7 @@ LLMIDIMapper {
 		};
 
 		this.load_button = Button()
-		.states_([["load", color_text, color_bg]])
+		.states_([["load", theme.color_text, theme.color_fg]])
 		.action_{
 			Dialog.openPanel({ |path|
 				"loading...".postln;
@@ -189,6 +302,7 @@ LLMIDIButton : Button {
 			// when toggled on, buttons are disabled, 
 			// and clicking a button registers it as the target of MIDI mapping
 			(this.mapper.toggle.value==1).if{
+				// undo the press
 				this.value = this.value - 1 % this.states.size;
 				this.mapper.target = this.name;
 				"mapping '%'...".format(this.name).postln;
@@ -270,9 +384,116 @@ LivingLooper {
 	}
 }
 
+LLPendulum {
+	*draw { |view, latents, l0_sign|
+		var bounds = view.bounds.width@view.bounds.height;
+		var pt = 0@0;
+		var mag = latents[0] * (l0_sign?1);
+		var ndrop = (latents.size - 1) % 4;
+		mag = (mag.exp+1).log.sqrt();
+		Pen.color = Color(0,0,0,0.3);
+		Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
+		latents.drop(1).drop(0-ndrop).clump(4).do{ |item,i|
+			var new_pt;
+			Pen.color = Color(
+				(item[2]).sin+1/2,
+				(i/8*6).cos+1/2,
+				(item[3]).sin+1/2);
+			Pen.moveTo(pt+1/2*bounds);
+			new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
+			new_pt = new_pt / (new_pt.abs+1);
+			Pen.lineTo(new_pt+1/2*bounds);
+			pt = new_pt;
+			Pen.width = bounds.x/10 * mag/(i/3+1);
+			Pen.stroke;
+		}
+	}
+}
+
+LLBars {
+	*draw { |view, latents, l0_sign| 
+		var bounds = view.bounds.width@view.bounds.height;
+		var num = latents.size;
+		Pen.color = Color(0.2,0.1,0.2,0.25);
+		Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
+		latents.do{ |item,i|
+			var v = i+1 / (num+2);
+			Pen.color = Color(
+				(i*2pi/3).sin+1/2,
+				(i*2pi/4).cos+1/2,
+				(i*2pi/5).sin+1/2);
+			Pen.moveTo((0.5@v)*bounds);
+			Pen.lineTo(((item/8 + 0.5)@v)*bounds);
+			Pen.width = 3;
+			Pen.stroke;
+		}
+	}
+}
+
+// // fixed colors
+// LLPendulum2 {
+// *draw {
+// 	var bounds = view.bounds.width@view.bounds.height;
+// 	var pt = 0@0;
+// 	// TODO: export should rectify latents,
+// 	// polarity of first latent is hardcoded here
+// 	// var mag = 0 - latents[0];
+// 	var mag = latents[0] * (l0_sign?1);
+// 	// var mag = latents.squared.sum.sqrt/3-2;
+// 	var ndrop = (latents.size - 1) % 4;
+// 	mag = (mag.exp+1).log.sqrt()/2;
+// 	Pen.color = Color(0,0,0,0.3);
+// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
+// 	latents.drop(1).drop(0-ndrop).clump(2).do{ |item,i|
+// 		var new_pt;
+// 		Pen.color = Color(
+// 			(i*2pi/3).cos+1/2,
+// 			(i*2pi/4).cos+1/2,
+// 			(i*2pi/5).cos+1/2);
+// 		Pen.moveTo(pt+1/2*bounds);
+// 		new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
+// 		new_pt = new_pt / (new_pt.abs+1);
+// 		Pen.lineTo(new_pt+1/2*bounds);
+// 		pt = new_pt;
+// 		Pen.width = bounds.x/10 * mag/(i/3+1);
+// 		Pen.stroke;
+// 	}
+// }}
+// // blocks
+// LLBlocks {
+// *draw {
+// 	var bounds = view.bounds.width@view.bounds.height;
+// 	var pt = 0@0;
+// 	// TODO: export should rectify latents,
+// 	// polarity of first latent is hardcoded here
+// 	// var mag = 0 - latents[0];
+// 	var mag = latents[0] * (l0_sign?1);
+// 	// var mag = latents.squared.sum.sqrt/3-2;
+// 	var ndrop = (latents.size - 1) % 4;
+// 	mag = (mag.exp+1).log.sqrt()/2;
+// 	Pen.color = Color(0,0,0,0.3);
+// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
+// 	latents.drop(1).drop(0-ndrop).clump(2).do{ |item,i|
+// 		var start, end, len;
+// 		Pen.color = Color(
+// 			(i*2pi/3).cos+1/2,
+// 			(i*2pi/4).cos+1/2,
+// 			(i*2pi/5).cos+1/2);
+// 		len = 1/(i+3);
+// 		start = Point(item[0],item[1])/3*mag;
+// 		end = start + (len@0);
+// 		start = start - (len@0);
+// 		Pen.moveTo(start+1/2*bounds);
+// 		Pen.lineTo(end+1/2*bounds);
+// 		Pen.width = bounds.x/10 * mag/(i/3+1);
+// 		Pen.stroke;
+// 	}
+// }}
+
 LLGUI {
 	var <name;
 	var <l0_sign;
+	var <theme;
 
 	var <>id;
 
@@ -287,6 +508,7 @@ LLGUI {
 	var <thruButton;
 	var <displays;
 	var <latents;
+	var <mapper;
 
 	ar { |input, blockSize=0|
 		var out, zs; 
@@ -316,12 +538,13 @@ LLGUI {
 		nLatent = NN(name, \encode).numOutputs;
 		nLoops = NN(name, \forward).numOutputs;
 		id = 99999999999.rand;
+		theme = theme ? LLTheme.new;
 	}
 
 	//// programmatic access to GUI actions
 	erase { |idx| 
 		(idx>0).if{
-			this.eraseButtons[idx-1].mouseDownAction.defer;
+			this.eraseButtons[idx-1].action.defer;
 		}{
 			("ERROR: LLGUI: can't erase loop" + idx).postln;
 		}
@@ -332,7 +555,7 @@ LLGUI {
 			{
 				this.autoButton.valueAction_(0);
 				this.loopButtons[idx-1].value_(0);
-				this.loopButtons[idx-1].mouseDownAction.();
+				this.loopButtons[idx-1].action.();
 				this.loopButtons[idx-1].value_(1);
 			}.defer;
 		}{
@@ -345,7 +568,7 @@ LLGUI {
 			{
 				this.autoButton.valueAction_(0);
 				this.loopButtons[idx-1].value_(1);
-				this.loopButtons[idx-1].mouseDownAction.();
+				this.loopButtons[idx-1].action.();
 				this.loopButtons[idx-1].value_(0);
 			}.defer;
 		}{
@@ -365,163 +588,60 @@ LLGUI {
 	map { |synth|
 		// synth: synth containing a LivingLooper UGen
 		this.synth = synth;
+		this.make_window.layout_(this.gui);
+		^ this
+	}
 
+	make_window {
 		// GUI elements
 		window = Window.new(bounds:Rect(200,250,1200,300))
-			.background_(Color(0.2,0.1,0.2))
+			.background_(theme.color_bg)
 			.front;
-		
+		^ window;
+	}
+
+	gui {
+		mapper = LLMIDIMapper.new;
+
 		// loop buttons start / end recording
 		loopButtons = nLoops.collect{ |i| 
-			Button().states_([
-				[(i+1).asString,Color(0.8,0.8,0.8),Color(0.3,0.2,0.3)],
-				["rec",Color(1,0.3,0.3),Color(0.2,0.1,0.2)]])
+			mapper.button(\loop++i.asSymbol).states_([
+				["record "++(i+1).asString, theme.color_text, theme.color_fg],
+				["play "++(i+1), theme.color_alert, theme.color_bg]])
 				.toolTip_("start/end recording loop"+(i+1));
 
 		};
 		// erase buttons 
 		eraseButtons = nLoops.collect{ |i|
-			Button().states_([["erase",Color(0.8,0.8,0.8),Color(0.1,0.05,0.1)]])
+			mapper.button(\erase++i.asSymbol).states_([
+				["erase "++i.asString,theme.color_text,theme.color_dark]])
 				.toolTip_("erase loop"+(i+1));
 		};
 
 		// TODO: possibly draw all loops into one userview so they can overlap?
 		displays = nLoops.collect{ |loop_idx|
-			UserView()
-				// .background_(Color.rand)
-				.background_(Color.black)
-				// .animate_(true)
-				.resize_(5)
-				.clearOnRefresh_(false)
-				// // bars
-				// .drawFunc_({ |view|
-				// 	var bounds = view.bounds.width@view.bounds.height;
-				// 	var num = latents[loop_idx].size;
-				// 	// Pen.color = Color(0,0,0,0.3);
-				// 	Pen.color = Color(0.2,0.1,0.2,0.25);
-				// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-				// 	latents[loop_idx].do{ |item,i|
-				// 		var v = i+1 / (num+2);
-				// 		Pen.color = Color(
-				// 			(i*2pi/3).sin+1/2,
-				// 			(i*2pi/4).cos+1/2,
-				// 			(i*2pi/5).sin+1/2);
-				// 		Pen.moveTo((0.5@v)*bounds);
-				// 		Pen.lineTo(((item/8 + 0.5)@v)*bounds);
-				// 		Pen.width = 3;
-				// 		Pen.stroke;
-				// 	}
-				// })
-				// // pendulum
-				.drawFunc_({ |view|
-					var bounds = view.bounds.width@view.bounds.height;
-					var pt = 0@0;
-					// TODO: export should rectify latents,
-					// polarity of first latent is hardcoded here
-					// var mag = 0 - latents[loop_idx][0];
-					var mag = latents[loop_idx][0] * (l0_sign?1);
-					// var mag = latents[loop_idx].squared.sum.sqrt/3-2;
-					var ndrop = (latents[loop_idx].size - 1) % 4;
-					mag = (mag.exp+1).log.sqrt();
-					Pen.color = Color(0,0,0,0.3);
-					Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-					latents[loop_idx].drop(1).drop(0-ndrop).clump(4).do{ |item,i|
-						var new_pt;
-						Pen.color = Color(
-							(item[2]).sin+1/2,
-							(i/8*6).cos+1/2,
-							(item[3]).sin+1/2);
-						Pen.moveTo(pt+1/2*bounds);
-						new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
-						new_pt = new_pt / (new_pt.abs+1);
-						Pen.lineTo(new_pt+1/2*bounds);
-						pt = new_pt;
-						Pen.width = bounds.x/10 * mag/(i/3+1);
-						Pen.stroke;
-					}
-				})
-				// // fixed colors
-				// .drawFunc_({ |view| 
-				// 	var bounds = view.bounds.width@view.bounds.height;
-				// 	var pt = 0@0;
-				// 	// TODO: export should rectify latents,
-				// 	// polarity of first latent is hardcoded here
-				// 	// var mag = 0 - latents[loop_idx][0];
-				// 	var mag = latents[loop_idx][0] * (l0_sign?1);
-				// 	// var mag = latents[loop_idx].squared.sum.sqrt/3-2;
-				// 	var ndrop = (latents[loop_idx].size - 1) % 4;
-				// 	mag = (mag.exp+1).log.sqrt()/2;
-				// 	Pen.color = Color(0,0,0,0.3);
-				// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-				// 	latents[loop_idx].drop(1).drop(0-ndrop).clump(2).do{ |item,i|
-				// 		var new_pt;
-				// 		Pen.color = Color(
-				// 			(i*2pi/3).cos+1/2,
-				// 			(i*2pi/4).cos+1/2,
-				// 			(i*2pi/5).cos+1/2);
-				// 		Pen.moveTo(pt+1/2*bounds);
-				// 		new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
-				// 		new_pt = new_pt / (new_pt.abs+1);
-				// 		Pen.lineTo(new_pt+1/2*bounds);
-				// 		pt = new_pt;
-				// 		Pen.width = bounds.x/10 * mag/(i/3+1);
-				// 		Pen.stroke;
-				// 	}
-				// })
-				// // blocks
-				// .drawFunc_({ |view|
-				// 	var bounds = view.bounds.width@view.bounds.height;
-				// 	var pt = 0@0;
-				// 	// TODO: export should rectify latents,
-				// 	// polarity of first latent is hardcoded here
-				// 	// var mag = 0 - latents[loop_idx][0];
-				// 	var mag = latents[loop_idx][0] * (l0_sign?1);
-				// 	// var mag = latents[loop_idx].squared.sum.sqrt/3-2;
-				// 	var ndrop = (latents[loop_idx].size - 1) % 4;
-				// 	mag = (mag.exp+1).log.sqrt()/2;
-				// 	Pen.color = Color(0,0,0,0.3);
-				// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-				// 	latents[loop_idx].drop(1).drop(0-ndrop).clump(2).do{ |item,i|
-				// 		var start, end, len;
-				// 		Pen.color = Color(
-				// 			(i*2pi/3).cos+1/2,
-				// 			(i*2pi/4).cos+1/2,
-				// 			(i*2pi/5).cos+1/2);
-				// 		len = 1/(i+3);
-				// 		start = Point(item[0],item[1])/3*mag;
-				// 		end = start + (len@0);
-				// 		start = start - (len@0);
-				// 		Pen.moveTo(start+1/2*bounds);
-				// 		Pen.lineTo(end+1/2*bounds);
-				// 		Pen.width = bounds.x/10 * mag/(i/3+1);
-				// 		Pen.stroke;
-				// 	}
-				// })
-				;
+			UserView.new
+			// .background_(Color.rand)
+			.background_(Color.black)
+			// .animate_(true)
+			.resize_(5)
+			.clearOnRefresh_(false)
+			// .drawFunc_(LLBars.draw(_, latents[loop_idx], l0_sign))
+			.drawFunc_(LLPendulum.draw(_, latents[loop_idx], l0_sign))
+			;
 		};
 
-		autoButton = Button()
-			.states_([["auto"], ["auto", Color.red]])
+		autoButton = mapper.button(\auto)
+			.states_([
+				["auto", theme.color_text, theme.color_fg],
+				["auto", theme.color_alert, theme.color_bg]])
 			.toolTip_("automatically record loops in response to input");
-		thruButton = Button()
-			.states_([["thru"], ["thru", Color.red]])
+		thruButton = mapper.button(\thru)
+			.states_([
+				["thru", theme.color_text, theme.color_fg], 
+				["thru", theme.color_alert, theme.color_bg]])
 			.toolTip_("hear processed input while recording a loop");
 		// thruButton = CheckBox().string_("thru");
-
-		// GUI layout
-		window.layout_(
-			HLayout(
-				VLayout(
-					thruButton,
-					autoButton,
-				),
-				*nLoops.collect{ |i| [VLayout(
-						displays[i],
-						eraseButtons[i],
-						loopButtons[i]
-				), stretch:1]},
-			)
-		);
 
 		latents = (0!nLatent)!nLoops;
 
@@ -543,17 +663,19 @@ LLGUI {
 		// GUI functions
 
 		//
-		loopButtons.do{ |b,i| b.mouseDownAction_{ 
+		loopButtons.do{ |b,i| b.action_{ 
 			// \hello.postln;
 			// auto mode off
 			(autoButton.value > 0).if{autoButton.valueAction_(0)};
 
-			(b.value==0).if{
+			(b.value==1).if{
 				debug.if{["LLGUI: loop", i+1].postln};
 				// start recording
 				synth!?(_.set(\loop, i+1));
-				// any recordings stop
+				// any other recording stops internally -- 
+				// make buttons reflect this
 				loopButtons.do{ |b| b.value_(0)};
+				b.value_(1);
 			}{
 				debug.if{["LLGUI: loop end"].postln};
 				// end recording
@@ -561,7 +683,7 @@ LLGUI {
 			}
 		}};
 
-		eraseButtons.do{ |b,i| b.mouseDownAction_{ 
+		eraseButtons.do{ |b,i| b.action_{ 
 			// erase loop
 			debug.if{["LLGUI: erase", i+1].postln};
 			synth!?(_.set(\loop, -1-i));
@@ -589,6 +711,66 @@ LLGUI {
 				synth!?(_.set(\thru, 0))
 			}
 		};
+
+		// GUI layout
+		^ VLayout(
+			HLayout(
+				thruButton,
+				autoButton,
+				mapper.gui
+			),
+			HLayout(
+				
+				*nLoops.collect{ |i| [VLayout(
+						displays[i],
+						eraseButtons[i],
+						loopButtons[i]
+				), stretch:1]},
+			),
+		);
+
+	}
+}
+
+// LLGUI plus a server panel and default synth
+// TODO: model picker
+// TODO: channel routing options
+LLStandalone {
+	var window;
+	var server_control;
+
+	*new { |...args|
+		^super.newCopyArgs(*args).init;
+	}
+
+	init {
+		server_control = LLServerControl.new(Server.default, {
+			// runs when server booted
+			var ll, synth;
+			LivingLooper.load(\test, \vrs_guitar_latest);
+			ll = LLGUI(\test);
+			ll.synth = {
+				var in = SoundIn.ar(0);
+				var out = ll.ar(in, blockSize:2048);
+				Splay.ar(out);
+			}.play;
+			window.layout.add(ll.gui, stretch:1);
+			window.setInnerExtent(1200, 500);
+		});
+
+		window = Window.new(bounds:Rect(200,250,1200,150))
+		.background_(Color(0.2,0.1,0.2))
+		.layout_(VLayout(
+			[HLayout(
+				[StaticText()
+					.string_("Living Looper v1.0.0b")
+					.stringColor_(Color(0.8,0.8,1))
+					.font_(Font("Helvetica", 60)),
+					stretch:1],
+				[server_control.gui, 
+					stretch:0],
+			), stretch:0]))
+		.front;
 
 	}
 }
