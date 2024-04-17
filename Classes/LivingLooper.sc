@@ -12,6 +12,18 @@ LLTheme {
 		color_alert = color_alert ? Color(1,0.3,0.3);
 		color_highlight = color_highlight ? Color(0.5,0.5,0.9);
 	}
+
+	label { |item, text, view=false|
+		var layout = VLayout(
+			StaticText().string_(text).stringColor_(color_text),
+			item
+		);
+		^ view.if{
+			View().layout_(layout)
+		}{
+			layout
+		}
+	}
 }
 
 LLServerControl {
@@ -90,37 +102,29 @@ LLServerControl {
 		^this
 	}
 
-	label { |item, text|
-		^VLayout(
-			StaticText().string_(text).stringColor_(theme.color_text),
-			item
-		)
-	}
-
 	gui {
 		^VLayout(
 			HLayout(
-				this.label(indevice_drop, "input device"),
-				this.label(outdevice_drop, "output device")
+				theme.label(indevice_drop, "input device"),
+				theme.label(outdevice_drop, "output device")
 			),
 			HLayout(
-				this.label(rate_box, "sampling rate"),
-				this.label(hblock_box, "hardware block"),
-				this.label(cblock_box, "control block"),
+				theme.label(rate_box, "sampling rate"),
+				theme.label(hblock_box, "hardware block"),
+				theme.label(cblock_box, "control block"),
 			),
 			boot_button,
 		)
 	}
 }
 
-// TODO excessive this
 LLMIDIMapper {
 	var <theme;
-	var <>toggle; //Button to enable MIDI mapping
-	var <>save_button;
-	var <>load_button; //Buttons to open file dialog
-	var <>buttons; //Dictionary of name -> Button
-	var <>map; //Dictionary of MIDI info -> name
+	var <toggle; //Button to enable MIDI mapping
+	var <save_button;
+	var <load_button; //Buttons to open file dialog
+	var <buttons; //Dictionary of name -> Button
+	var <map; //Dictionary of MIDI info -> name
 	var <>target; //current target of MIDI mapping
 
 	*new { |...args|
@@ -128,9 +132,10 @@ LLMIDIMapper {
 	}
 
 	gui {
-		var label = StaticText()
-		.string_("MIDI map:").stringColor_(theme.color_text);
-		^HLayout(label, this.toggle, this.save_button, this.load_button)
+		// var label = StaticText()
+		// .string_("MIDI map:").stringColor_(theme.color_text);
+		// ^HLayout([label, align:\right], toggle, save_button, load_button)
+		^HLayout(toggle, save_button, load_button)
 	}
 
 	button { |name, parent, bounds|
@@ -144,16 +149,16 @@ LLMIDIMapper {
 
 	set_states {
 		// reset all
-		this.buttons.do{ |button| 
-			var extra_text = (this.toggle.value==1).if{" (...)"}{""};
+		buttons.do{ |button| 
+			var extra_text = (toggle.value==1).if{" (...)"}{""};
 			button.states_(button.initial_states.collect{ |state| 
 				[state[0]++extra_text] ++ state[1..]
 			}, ephemeral:true)
 		};
 
 		// then set all in map
-		this.map.pairsDo{ |key, name|
-			var button = this.buttons.at(name);
+		map.pairsDo{ |key, name|
+			var button = buttons.at(name);
 			button.states_(button.initial_states.collect{ |state| 
 				[this.get_text(key, state[0])] ++ state[1..]
 			}, ephemeral:true)
@@ -163,57 +168,59 @@ LLMIDIMapper {
 	add { |key, target|
 		var button, miditext;
 		// map MIDI to name
-		this.map.add(key -> target);
-		this.map.postln;
+		map.add(key -> target);
+		map.postln;
 		// modify button text
 		this.set_states;
 	}
 
 	match { |key|
-		var name = this.map.at(key);
-		^this.buttons.at(name);
+		var name = map.at(key);
+		^buttons.at(name);
 	}
 
 	init {
 		theme = theme ? LLTheme.new;
-		this.buttons = Dictionary.new;
-		this.map = Dictionary.new;
+		buttons = Dictionary.new;
+		map = Dictionary.new;
 
 		// global MIDI map toggle -- visually changes all MIDIButtons
-		this.toggle = Button()
+		toggle = Button()
 		.states_([
-			["start", theme.color_text, theme.color_fg],
-			["done", theme.color_text, theme.color_highlight]])
+			["MIDI map", theme.color_highlight, theme.color_fg],
+			["done", theme.color_dark, theme.color_highlight]])
+		.toolTip_("toggle MIDI mapping. when mapping, click a button in the GUI, and it will become associated with the next MIDI message to arrive.")
 		.action_{
 			// update button appearances
 			this.set_states;
 		};
 
-		this.save_button = Button()
-		.states_([["save", theme.color_text, theme.color_fg]])
+		save_button = Button()
+		.states_([["save map", theme.color_text, theme.color_fg]])
+		.toolTip_("save the current MIDI map as a file")
 		.action_{
 			Dialog.savePanel({ |path|
-				this.map.writeArchive(path);
+				map.writeArchive(path);
 			})
 		};
 
-		this.load_button = Button()
-		.states_([["load", theme.color_text, theme.color_fg]])
+		load_button = Button()
+		.states_([["load map", theme.color_text, theme.color_fg]])
+		.toolTip_("load the MIDI map from a file")
 		.action_{
 			Dialog.openPanel({ |path|
 				"loading...".postln;
-				this.map = Object.readArchive(path).postln;
+				map = Object.readArchive(path).postln;
 				this.set_states;
 			})
 		};
 
-		// TODO: handlers for other msgTypes
 		MIDIdef(\LLMIDIMapperOn, { |val, num, chan, src|
 			var key = [\note, num, chan, src];
 			// noteOn can trigger MIDI mapping
 			// noteOn sets button to state 1
 			{
-				(this.toggle.value==1).if{
+				(toggle.value==1).if{
 					// when mapping is toggled on, a MIDI handler associates 
 					// incoming messages type/value/chan/src with the target button
 					this.add(key, this.target);
@@ -262,7 +269,7 @@ LLMIDIMapper {
 			// controlChange can trigger MIDI mapping
 			// controlChange toggles button 
 			{
-				(this.toggle.value==1).if{
+				(toggle.value==1).if{
 					// when mapping is toggled on, a MIDI handler associates 
 					// incoming messages type/value/chan/src with the target button
 					this.add(key, this.target);
@@ -315,17 +322,17 @@ LLMIDIButton : Button {
 }
 
 LivingLooper {
+
+	*sources {
+		^ thisProcess.interpreter.executeFile(PathName(
+			LivingLooper.filenameSymbol.asString
+			).parentPath +/+ "sources.scd");
+	}
+
 	*load { |name, source, forceDownload=false|
 		var filename;
 
-		// var sources = (
-			// vrs_guitar_latest: "http://localhost:8000/ll_gtr48lr_l4_z26.ts"
-		// );
-
-		var sources = thisProcess.interpreter.executeFile(PathName(
-				LivingLooper.filenameSymbol.asString
-				).parentPath +/+ "sources.scd");
-
+		var sources = LivingLooper.sources;
 		var url = sources.at(source);
 		url.notNil.if{
 			// get model by name from remote source
@@ -510,6 +517,8 @@ LLGUI {
 	var <latents;
 	var <mapper;
 
+	var <gui;
+
 	ar { |input, blockSize=0|
 		var out, zs; 
 		var mx;
@@ -539,68 +548,7 @@ LLGUI {
 		nLoops = NN(name, \forward).numOutputs;
 		id = 99999999999.rand;
 		theme = theme ? LLTheme.new;
-	}
 
-	//// programmatic access to GUI actions
-	erase { |idx| 
-		(idx>0).if{
-			this.eraseButtons[idx-1].action.defer;
-		}{
-			("ERROR: LLGUI: can't erase loop" + idx).postln;
-		}
-	}
-
-	record { |idx| 
-		(idx>0).if{
-			{
-				this.autoButton.valueAction_(0);
-				this.loopButtons[idx-1].value_(0);
-				this.loopButtons[idx-1].action.();
-				this.loopButtons[idx-1].value_(1);
-			}.defer;
-		}{
-			("ERROR: LLGUI: can't record loop" + idx).postln;
-		}
-	}
-
-	end { |idx|
-		(idx>0).if{
-			{
-				this.autoButton.valueAction_(0);
-				this.loopButtons[idx-1].value_(1);
-				this.loopButtons[idx-1].action.();
-				this.loopButtons[idx-1].value_(0);
-			}.defer;
-		}{
-			("ERROR: LLGUI: can't end loop" + idx).postln;
-		}
-	}
-
-	auto {
-		{this.autoButton.valueAction_(1-this.autoButton.value)}.defer;
-	}
-
-	thru {
-		{this.thruButton.valueAction_(1-this.thruButton.value)}.defer;
-	} 
-	//////
-
-	map { |synth|
-		// synth: synth containing a LivingLooper UGen
-		this.synth = synth;
-		this.make_window.layout_(this.gui);
-		^ this
-	}
-
-	make_window {
-		// GUI elements
-		window = Window.new(bounds:Rect(200,250,1200,300))
-			.background_(theme.color_bg)
-			.front;
-		^ window;
-	}
-
-	gui {
 		mapper = LLMIDIMapper.new;
 
 		// loop buttons start / end recording
@@ -713,63 +661,169 @@ LLGUI {
 		};
 
 		// GUI layout
-		^ VLayout(
-			HLayout(
-				thruButton,
-				autoButton,
-				mapper.gui
-			),
-			HLayout(
-				
-				*nLoops.collect{ |i| [VLayout(
-						displays[i],
-						eraseButtons[i],
-						loopButtons[i]
-				), stretch:1]},
-			),
-		);
+		gui = View().layout_(
+			VLayout(
+				HLayout(
+					thruButton,
+					autoButton,
+					mapper.gui
+				),
+				HLayout(
+					*nLoops.collect{ |i| [VLayout(
+							displays[i],
+							eraseButtons[i],
+							loopButtons[i]
+					), stretch:1]},
+				),
+			)
+		)
+	}
 
+	//// programmatic access to GUI actions
+	erase { |idx| 
+		(idx>0).if{
+			this.eraseButtons[idx-1].action.defer;
+		}{
+			("ERROR: LLGUI: can't erase loop" + idx).postln;
+		}
+	}
+
+	record { |idx| 
+		(idx>0).if{
+			{
+				this.autoButton.valueAction_(0);
+				this.loopButtons[idx-1].value_(0);
+				this.loopButtons[idx-1].action.();
+				this.loopButtons[idx-1].value_(1);
+			}.defer;
+		}{
+			("ERROR: LLGUI: can't record loop" + idx).postln;
+		}
+	}
+
+	end { |idx|
+		(idx>0).if{
+			{
+				this.autoButton.valueAction_(0);
+				this.loopButtons[idx-1].value_(1);
+				this.loopButtons[idx-1].action.();
+				this.loopButtons[idx-1].value_(0);
+			}.defer;
+		}{
+			("ERROR: LLGUI: can't end loop" + idx).postln;
+		}
+	}
+
+	auto {
+		{this.autoButton.valueAction_(1-this.autoButton.value)}.defer;
+	}
+
+	thru {
+		{this.thruButton.valueAction_(1-this.thruButton.value)}.defer;
+	} 
+	//////
+
+	map { |synth|
+		// synth: synth containing a LivingLooper UGen
+		this.synth = synth;
+		this.make_window.layout_(this.gui);
+		^ this
+	}
+
+	make_window {
+		// GUI elements
+		window = Window.new(bounds:Rect(200,250,1200,300))
+			.background_(theme.color_bg)
+			.front;
+		^ window;
 	}
 }
 
 // LLGUI plus a server panel and default synth
-// TODO: model picker
 // TODO: channel routing options
+// TODO: global MIDI port, channel select?
 LLStandalone {
-	var window;
+	var <theme;
+	var <window;
 	var server_control;
+	var model_picker;
+	var title;
+	var <ll, <synth;
+
+	var midi_state;
+
+	var hsize = 1200;
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
 	}
-
-	init {
-		server_control = LLServerControl.new(Server.default, {
-			// runs when server booted
-			var ll, synth;
-			LivingLooper.load(\test, \vrs_guitar_latest);
-			ll = LLGUI(\test);
+	
+	make_synth {
+		server_control.server.serverRunning.if{
+			// runs when server booted or model changed
+			// TODO: forceDownload option
+			LivingLooper.load(\standalone, model_picker.item, forceDownload:true);
+			ll = LLGUI(\standalone);
+			// copy previous MIDI mapper state over
+			midi_state.notNil.if{ 
+				ll.mapper.map.putAll(midi_state); 
+				ll.mapper.set_states;
+			};
+			// create Synth on the server
 			ll.synth = {
 				var in = SoundIn.ar(0);
 				var out = ll.ar(in, blockSize:2048);
 				Splay.ar(out);
 			}.play;
 			window.layout.add(ll.gui, stretch:1);
-			window.setInnerExtent(1200, 500);
-		});
+			window.setInnerExtent(hsize, 500);
+		}
+	}
 
-		window = Window.new(bounds:Rect(200,250,1200,150))
-		.background_(Color(0.2,0.1,0.2))
+	stop_synth {
+		midi_state = ll.mapper.map;
+		ll.gui.remove;
+		synth.free;
+	}
+
+	init {
+
+		theme = theme ? LLTheme.new;
+
+		server_control = LLServerControl.new(Server.default, {this.make_synth});
+
+		model_picker = PopUpMenu()
+		.minWidth_(300)
+		.items_(LivingLooper.sources.keys.asList++["..."])
+		.background_(theme.color_highlight)
+		.stringColor_(theme.color_dark)
+		.toolTip_("choose a Living Looper model")
+		.action_{
+			(model_picker.item=="...").if{
+				Dialog.openPanel({ |path|
+					model_picker.items = [path] ++ model_picker.items;
+					model_picker.valueAction_(0);
+				})
+			}{
+				this.stop_synth;
+				this.make_synth;
+			}
+		};
+
+		title = StaticText()
+		.string_("Living Looper v1.0.0b")
+		.stringColor_(theme.color_highlight)
+		.font_(Font("Helvetica", 60));
+
+		window = Window.new(bounds:Rect(200, 500, hsize, 150))
+		.background_(theme.color_bg)
 		.layout_(VLayout(
 			[HLayout(
-				[StaticText()
-					.string_("Living Looper v1.0.0b")
-					.stringColor_(Color(0.8,0.8,1))
-					.font_(Font("Helvetica", 60)),
-					stretch:1],
-				[server_control.gui, 
-					stretch:0],
-			), stretch:0]))
+				[title, stretch:2, align:\center],
+				[theme.label(model_picker, "Model", view:true), stretch:1, align:\center],
+				[server_control.gui, stretch:0],
+			), stretch:0]
+		))
 		.front;
 
 	}
