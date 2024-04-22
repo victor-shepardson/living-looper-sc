@@ -30,13 +30,17 @@ LLServerControl {
 	var <>server;
 	var <on_boot;
 	var <theme;
-	var <boot_button, <rate_box, <hblock_box, <cblock_box, <indevice_drop, <outdevice_drop;
+	var <boot_button, <rate_box, <hblock_box, <cblock_box;
+	var <inchan_box, outchan_box, <indevice_drop, <outdevice_drop;
+
+	var boxwidth = 92;
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
 	}
 
 	init {
+
 		server = server ? Server.default;
 		theme = theme ? LLTheme.new;
 		boot_button = Button.new
@@ -47,11 +51,13 @@ LLServerControl {
 		.toolTip_("boot server")
 		.action_{
 			(boot_button.value==1).if{
-				server.options.sampleRate = rate_box.value.postln;
-				server.options.hardwareBufferSize = hblock_box.value.postln;
-				server.options.blockSize = cblock_box.value.postln;
-				server.options.inDevice = indevice_drop.item.postln;
-				server.options.outDevice = outdevice_drop.item.postln;
+				server.options.sampleRate = rate_box.value;
+				server.options.hardwareBufferSize = hblock_box.value.asInteger;
+				server.options.blockSize = cblock_box.value.asInteger;
+				server.options.inDevice = indevice_drop.item;
+				server.options.outDevice = outdevice_drop.item;
+				server.options.numInputBusChannels = inchan_box.value.asInteger;
+				server.options.numOutputBusChannels = outchan_box.value.asInteger;
 				server.waitForBoot{
 					on_boot.value
 				};
@@ -61,28 +67,53 @@ LLServerControl {
 		};
 
 		rate_box = NumberBox()
-		.valueAction_(48000)
+		.value_(48000)
+		.decimals_(0)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.maxWidth_(boxwidth)
 		.toolTip_("set sampling rate (requires server reboot)");
 
-
-		hblock_box = NumberBox()
-		.valueAction_(128)
+		inchan_box = NumberBox()
+		.value_(8)
+		.decimals_(0)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.maxWidth_(boxwidth)
+		.toolTip_("set max number of input channels when opening audio device");
+
+		outchan_box = NumberBox()
+		.value_(8)
+		.decimals_(0)
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.normalColor_(theme.color_text)
+		.typingColor_(theme.color_alert)
+		.maxWidth_(boxwidth)
+		.toolTip_("set max number of output channels when opening audio device");
+
+		hblock_box = NumberBox()
+		.value_(128)
+		.decimals_(0)
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.normalColor_(theme.color_text)
+		.typingColor_(theme.color_alert)
+		.maxWidth_(boxwidth)
 		.toolTip_("set hardware block size (requires server reboot)");
 
 		cblock_box = NumberBox()
-		.valueAction_(128)
+		.value_(128)
+		.decimals_(0)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.maxWidth_(boxwidth)
 		.toolTip_("set supercollider control block size (requires server reboot)");
 
 		indevice_drop = PopUpMenu()
@@ -108,10 +139,16 @@ LLServerControl {
 				theme.label(indevice_drop, "input device"),
 				theme.label(outdevice_drop, "output device")
 			),
+			// HLayout(
+			// 	theme.label(inchan_box, "input channels"),
+			// 	theme.label(outchan_box, "output channels")
+			// ),
 			HLayout(
 				theme.label(rate_box, "sampling rate"),
-				theme.label(hblock_box, "hardware block"),
+				theme.label(hblock_box, "driver block"),
 				theme.label(cblock_box, "control block"),
+				theme.label(inchan_box, "in channels"),
+				theme.label(outchan_box, "out channels")
 			),
 			boot_button,
 		)
@@ -397,7 +434,8 @@ LLPendulum {
 		var pt = 0@0;
 		var mag = latents[0] * (l0_sign?1);
 		var ndrop = (latents.size - 1) % 4;
-		mag = (mag.exp+1).log.sqrt();
+		mag = (mag.exp+1).log;
+		(mag>1).if{mag = mag.sqrt};
 		Pen.color = Color(0,0,0,0.3);
 		Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
 		latents.drop(1).drop(0-ndrop).clump(4).do{ |item,i|
@@ -747,6 +785,9 @@ LLStandalone {
 	var <window;
 	var server_control;
 	var model_picker;
+	var input_picker;
+	var output_picker;
+
 	var title;
 	var <ll, <synth;
 
@@ -760,9 +801,19 @@ LLStandalone {
 	
 	make_synth {
 		server_control.server.serverRunning.if{
+			var n_out = 2; // TODO control this
+
+			input_picker.items_(
+				server_control.server.options.numInputBusChannels
+				.collect{ |i| i+1 });
+
+			output_picker.items_(
+				(server_control.server.options.numOutputBusChannels+1-n_out)
+				.collect{ |i| "%-%".format(i+1, i+n_out) });
+
 			// runs when server booted or model changed
 			// TODO: forceDownload option
-			LivingLooper.load(\standalone, model_picker.item, forceDownload:true);
+			LivingLooper.load(\standalone, model_picker.item, forceDownload:false);
 			ll = LLGUI(\standalone);
 			// copy previous MIDI mapper state over
 			midi_state.notNil.if{ 
@@ -770,27 +821,33 @@ LLStandalone {
 				ll.mapper.set_states;
 			};
 			// create Synth on the server
-			ll.synth = {
-				var in = SoundIn.ar(0);
+			// TODO unique synthdef name per instance
+			ll.synth = SynthDef(\ll, {
+				var in = SoundIn.ar(\inbus.kr(input_picker.value));
 				var out = ll.ar(in, blockSize:2048);
-				Splay.ar(out);
-			}.play;
+				var sig = Splay.ar(out);
+				Out.ar(\outbus.kr(output_picker.value), sig);
+			}).play;
 			window.layout.add(ll.gui, stretch:1);
 			window.setInnerExtent(hsize, 500);
 		}
 	}
 
 	stop_synth {
-		midi_state = ll.mapper.map;
-		ll.gui.remove;
-		synth.free;
+		ll.notNil.if{
+			midi_state = ll.mapper.map;
+			ll.gui.remove;
+		};
+		synth.notNil.if{
+			synth.free;
+		};
 	}
 
 	init {
 
 		theme = theme ? LLTheme.new;
 
-		server_control = LLServerControl.new(Server.default, {this.make_synth});
+		server_control = LLServerControl.new(Server.default, {this.stop_synth; this.make_synth});
 
 		model_picker = PopUpMenu()
 		.minWidth_(300)
@@ -810,6 +867,23 @@ LLStandalone {
 			}
 		};
 
+		input_picker = PopUpMenu()
+		// .minWidth_(300)
+		.items_([1,2]) // TODO: update this when the server boots
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.toolTip_("choose a mono input channel")
+		.action_{ll.synth.set(\inbus, input_picker.value)}
+		;
+		output_picker = PopUpMenu()
+		// .minWidth_(300)
+		.items_(["1-2", "2-3", "3-4"]) // TODO
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.toolTip_("choose a range of output channels")
+		.action_{ll.synth.set(\outbus, output_picker.value)}
+		;
+
 		title = StaticText()
 		.string_("Living Looper v1.0.0b")
 		.stringColor_(theme.color_highlight)
@@ -820,7 +894,13 @@ LLStandalone {
 		.layout_(VLayout(
 			[HLayout(
 				[title, stretch:2, align:\center],
-				[theme.label(model_picker, "Model", view:true), stretch:1, align:\center],
+				[VLayout(
+					theme.label(model_picker, "Model", view:true),
+					HLayout(
+						theme.label(input_picker, "Input", view:true),
+						theme.label(output_picker, "Output", view:true)
+					)
+				), stretch:1, align:\center],
 				[server_control.gui, stretch:0],
 			), stretch:0]
 		))
