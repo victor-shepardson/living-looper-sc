@@ -1,5 +1,7 @@
 LLTheme {
 	var <color_bg, <color_fg, <color_dark, <color_text, <color_alert, <color_highlight;
+	var <color_green, <color_yellow;
+	var <spacing;
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
 	}
@@ -11,13 +13,16 @@ LLTheme {
 		color_text = color_text ? Color(0.8,0.8,0.8);
 		color_alert = color_alert ? Color(1,0.3,0.3);
 		color_highlight = color_highlight ? Color(0.5,0.5,0.9);
+		color_green = color_green ? Color(0.5,1,0.6);
+		color_yellow = color_yellow ? Color(1,0.9,0.5);
+		spacing = 4;
 	}
 
 	label { |item, text, view=false|
 		var layout = VLayout(
 			StaticText().string_(text).stringColor_(color_text),
 			item
-		);
+		).spacing_(0);
 		^ view.if{
 			View().layout_(layout)
 		}{
@@ -26,12 +31,136 @@ LLTheme {
 	}
 }
 
+LLMeter : ServerMeterView {
+
+	init { arg aserver, parent, leftUp, anumIns, anumOuts, theme;
+		var innerView, viewWidth, levelIndic, palette;
+		var inlabels, outlabels;
+
+		var get_meter = {
+			LevelIndicator()
+			.warning_(0.9)
+			.critical_(1.0)
+			.drawsPeak_(true)
+			.background_(theme.color_dark)
+			.meterColor_(theme.color_green)
+			.warningColor_(theme.color_yellow)
+			.criticalColor_(theme.color_alert)
+			// .numTicks_(9)
+			// .numMajorTicks_(3)
+		};
+
+		theme = theme ? LLTheme.new; 
+
+		server = aserver;
+
+		numIns = anumIns ?? { server.options.numInputBusChannels };
+		numOuts = anumOuts ?? { server.options.numOutputBusChannels };
+
+		// viewWidth = this.class.getWidth(anumIns, anumOuts);
+
+		// leftUp = leftUp ? (0@0);
+
+		view = CompositeView(
+			parent, 
+			// Rect(leftUp.x, leftUp.y, viewWidth, height) 
+			);
+		view.onClose_( { this.stop });
+		// innerView = CompositeView(view, Rect(10, 25, viewWidth, height) );
+		// innerView.addFlowLayout(0@0, gapWidth@gapWidth);
+
+		// dB scale
+		// UserView(innerView, Rect(0, 0, meterWidth, 195)).drawFunc_( {
+		// 	try {
+		// 		Pen.color = \QPalette.asClass.new.windowText;
+		// 	} {
+		// 		Pen.color = Color.white;
+		// 	};
+		// 	Pen.font = Font.sansSerif(10).boldVariant;
+		// 	Pen.stringCenteredIn("0", Rect(0, 0, meterWidth, 12));
+		// 	Pen.stringCenteredIn("-80", Rect(0, 170, meterWidth, 12));
+		// });
+
+		// ins
+		if(numIns > 0) {
+			// StaticText(view, Rect(10, 5, 100, 15))
+			// .font_(Font.sansSerif(10).boldVariant)
+			// .string_("Inputs");
+			inmeters = Array.fill(numIns, get_meter);
+			inlabels = Array.fill(numIns, { arg i;
+				StaticText()
+				.font_(Font.sansSerif(9).boldVariant)
+				.string_((i+1).asString)
+				.stringColor_(theme.color_text)
+			});
+		};
+
+		// if((numIns > 0) && (numOuts > 0)) {
+		// 	// divider
+		// 	UserView().drawFunc_( {|view|
+		// 		var height = view.bounds.height;
+		// 		try {
+		// 			Pen.color = \QPalette.asClass.new.windowText;
+		// 		} {
+		// 			Pen.color = Color.white;
+		// 		};
+		// 		Pen.line(
+		// 			((meterWidth + gapWidth) * 0.5)@0, 
+		// 			((meterWidth + gapWidth) * 0.5)@height);
+		// 		Pen.stroke;
+		// 	});
+		// };
+
+		// outs
+		if(numOuts > 0) {
+			// StaticText(view, Rect(10, 5, 100, 15))
+			// .font_(Font.sansSerif(10).boldVariant)
+			// .string_("Inputs");
+			outmeters = Array.fill(numOuts, get_meter);
+			outlabels = Array.fill(numOuts, { arg i;
+				StaticText()
+				.font_(Font.sansSerif(9).boldVariant)
+				.string_((i+1).asString)
+				.stringColor_(theme.color_text)
+			});
+		};
+		// if(numOuts > 0) {
+		// 	StaticText(view, Rect(10 + if(numIns > 0) { (numIns + 2) * (meterWidth + gapWidth) } { 0 }, 5, 100, 15))
+		// 	.font_(Font.sansSerif(10).boldVariant)
+		// 	.string_("Outputs");
+		// 	outmeters = Array.fill( numOuts, { arg i;
+		// 		var comp;
+		// 		comp = CompositeView(innerView, Rect(0, 0, meterWidth, 195));
+		// 		StaticText(comp, Rect(0, 180, meterWidth, 15))
+		// 		.font_(Font.sansSerif(9).boldVariant)
+		// 		.string_(i.asString);
+		// 		levelIndic = LevelIndicator( comp, Rect(0, 0, meterWidth, 180) ).warning_(0.9).critical_(1.0)
+		// 		.drawsPeak_(true)
+		// 		.numTicks_(9)
+		// 		.numMajorTicks_(3);
+		// 	});
+		// };
+
+		view.layout_(HLayout(*(
+			numIns.collect{ |i| VLayout(
+				inmeters[i], [inlabels[i], align:\center])}
+			++ [View().minWidth_(8)]
+			++ numOuts.collect{ |i| VLayout
+			(outmeters[i], [outlabels[i], align:\center])}
+		)).spacing_(theme.spacing).margins_(0));
+
+		this.setSynthFunc(inmeters, outmeters);
+		startResponderFunc = {this.startResponders};
+		this.start;
+	}
+}
+
 LLServerControl {
 	var <>server;
 	var <on_boot;
 	var <theme;
 	var <boot_button, <rate_box, <hblock_box, <cblock_box;
-	var <inchan_box, outchan_box, <indevice_drop, <outdevice_drop;
+	var <inchan_box, <outchan_box, <indevice_drop, <outdevice_drop;
 
 	var boxwidth = 92;
 
@@ -40,12 +169,12 @@ LLServerControl {
 	}
 
 	init {
-
 		server = server ? Server.default;
 		theme = theme ? LLTheme.new;
 		boot_button = Button.new
 		.states_([
-			["boot server",theme.color_text,theme.color_fg],
+			["boot server",theme.color_green,theme.color_fg],
+			["booting...",theme.color_yellow,theme.color_bg],
 			["quit server",theme.color_alert,theme.color_bg]])
 		.value_(server.serverRunning.asInteger)
 		.toolTip_("boot server")
@@ -59,7 +188,8 @@ LLServerControl {
 				server.options.numInputBusChannels = inchan_box.value.asInteger;
 				server.options.numOutputBusChannels = outchan_box.value.asInteger;
 				server.waitForBoot{
-					on_boot.value
+					on_boot.value;
+					boot_button.value = 2;
 				};
 			}{
 				server.quit;
@@ -138,7 +268,7 @@ LLServerControl {
 			HLayout(
 				theme.label(indevice_drop, "input device"),
 				theme.label(outdevice_drop, "output device")
-			),
+			).spacing_(theme.spacing),
 			// HLayout(
 			// 	theme.label(inchan_box, "input channels"),
 			// 	theme.label(outchan_box, "output channels")
@@ -149,9 +279,9 @@ LLServerControl {
 				theme.label(cblock_box, "control block"),
 				theme.label(inchan_box, "in channels"),
 				theme.label(outchan_box, "out channels")
-			),
+			).spacing_(theme.spacing),
 			boot_button,
-		)
+		).spacing_(theme.spacing)
 	}
 }
 
@@ -381,7 +511,10 @@ LivingLooper {
 			filename = modelDir +/+ PathName(url).fileName;
 			(forceDownload || File.exists(filename).not).if{
 				"downloading % from % to %".format(name, url, filename).postln;
-				forkIfNeeded{
+				// ["======THREAD======", thisThread, thisThread.clock].postln;
+				// forkIfNeeded{
+				{
+					// ["======THREAD======", thisThread, thisThread.clock].postln;
 					Download(
 						url,
 						filename,
@@ -405,8 +538,12 @@ LivingLooper {
 			}
 		};
 		"loading % from %".format(name, filename).postln;
-		NN.load(name, filename);
-		NN(name).describe;
+		Server.default.serverRunning.if{
+			NN.load(name, filename);
+			NN(name).describe;
+		}{
+			"WARNING: server not running".postln;
+		}
 	}
 
 	*ar { |name, input, loop=0, thru=0, auto=0, blockSize=0|
@@ -552,8 +689,10 @@ LLGUI {
 	var <autoButton;
 	var <thruButton;
 	var <displays;
+	var <freqscopes;
 	var <latents;
 	var <mapper;
+	var <loops_bus;
 
 	var <gui;
 
@@ -615,6 +754,17 @@ LLGUI {
 			// .drawFunc_(LLBars.draw(_, latents[loop_idx], l0_sign))
 			.drawFunc_(LLPendulum.draw(_, latents[loop_idx], l0_sign))
 			;
+		};
+
+		// NOTE: for the scopes to work, the synth will need to write to loops_bus
+		loops_bus = Bus.alloc(\audio, numChannels:nLoops);
+
+		freqscopes = nLoops.collect{ |loop_idx|
+			FreqScopeView()
+			.active_(true)
+			.freqMode_(1)
+			// .dbRange
+			.inBus_(loop_idx+loops_bus.index)
 		};
 
 		autoButton = mapper.button(\auto)
@@ -705,16 +855,24 @@ LLGUI {
 					thruButton,
 					autoButton,
 					mapper.gui
-				),
+				).spacing_(theme.spacing),
 				HLayout(
 					*nLoops.collect{ |i| [VLayout(
-							displays[i],
-							eraseButtons[i],
-							loopButtons[i]
-					), stretch:1]},
-				),
-			)
+						VLayout(
+							[displays[i], stretch:5],
+							[freqscopes[i], stretch:1],
+						).spacing_(0),
+						eraseButtons[i],
+						loopButtons[i]
+					).spacing_(theme.spacing), stretch:1]},
+				).spacing_(theme.spacing),
+			).margins_(0)
 		)
+	}
+
+	destroy {
+		gui.remove;
+		synth !? (_.free);
 	}
 
 	//// programmatic access to GUI actions
@@ -772,8 +930,13 @@ LLGUI {
 		// GUI elements
 		window = Window.new(bounds:Rect(200,250,1200,300))
 			.background_(theme.color_bg)
+			.onClose_{this.cleanup}
 			.front;
 		^ window;
+	}
+
+	cleanup {
+		freqscopes ? freqscopes.do(_.kill);
 	}
 }
 
@@ -787,9 +950,11 @@ LLStandalone {
 	var model_picker;
 	var input_picker;
 	var output_picker;
+	var meter_view;
+	var force_dl;
 
 	var title;
-	var <ll, <synth;
+	var <ll;
 
 	var midi_state;
 
@@ -797,6 +962,15 @@ LLStandalone {
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
+	}
+
+	make_meter {
+		meter_view.layout_(VLayout(LLMeter(
+			server_control.server, 
+			numIns:server_control.server.options.numInputBusChannels,
+			numOuts:server_control.server.options.numOutputBusChannels,
+			).view))
+		;
 	}
 	
 	make_synth {
@@ -811,9 +985,16 @@ LLStandalone {
 				(server_control.server.options.numOutputBusChannels+1-n_out)
 				.collect{ |i| "%-%".format(i+1, i+n_out) });
 
+			// meter.notNil.if{meter.remove};
+			// meter = make_meter;
+			meter_view.removeAll;
+			this.make_meter;
+
 			// runs when server booted or model changed
 			// TODO: forceDownload option
-			LivingLooper.load(\standalone, model_picker.item, forceDownload:false);
+			LivingLooper.load(
+				\standalone, model_picker.item, 
+				forceDownload:false);
 			ll = LLGUI(\standalone);
 			// copy previous MIDI mapper state over
 			midi_state.notNil.if{ 
@@ -821,25 +1002,22 @@ LLStandalone {
 				ll.mapper.set_states;
 			};
 			// create Synth on the server
-			// TODO unique synthdef name per instance
-			ll.synth = SynthDef(\ll, {
+			ll.synth = SynthDef(\ll++ll.id, {
 				var in = SoundIn.ar(\inbus.kr(input_picker.value));
 				var out = ll.ar(in, blockSize:2048);
-				var sig = Splay.ar(out);
-				Out.ar(\outbus.kr(output_picker.value), sig);
+				var stereo = Splay.ar(out);
+				Out.ar(\outbus.kr(output_picker.value), stereo);
+				Out.ar(ll.loops_bus, out);
 			}).play;
 			window.layout.add(ll.gui, stretch:1);
-			window.setInnerExtent(hsize, 500);
+			window.setInnerExtent(hsize, 550);
 		}
 	}
 
 	stop_synth {
 		ll.notNil.if{
 			midi_state = ll.mapper.map;
-			ll.gui.remove;
-		};
-		synth.notNil.if{
-			synth.free;
+			ll.destroy;
 		};
 	}
 
@@ -847,10 +1025,12 @@ LLStandalone {
 
 		theme = theme ? LLTheme.new;
 
-		server_control = LLServerControl.new(Server.default, {this.stop_synth; this.make_synth});
+		server_control = LLServerControl.new(
+			Server.default, {this.stop_synth; this.make_synth});
 
 		model_picker = PopUpMenu()
-		.minWidth_(300)
+		.allowsReselection_(true)
+		.minWidth_(270)
 		.items_(LivingLooper.sources.keys.asList++["..."])
 		.background_(theme.color_highlight)
 		.stringColor_(theme.color_dark)
@@ -865,6 +1045,14 @@ LLStandalone {
 				this.stop_synth;
 				this.make_synth;
 			}
+		};
+
+		force_dl = Button()
+		.states_([["dl", theme.color_alert, theme.color_fg]])
+		.maxWidth_(25)
+		.toolTip_("force download of current model (to get updates)")
+		.action_{
+			LivingLooper.load(\standalone, model_picker.item, forceDownload:true)
 		};
 
 		input_picker = PopUpMenu()
@@ -884,6 +1072,10 @@ LLStandalone {
 		.action_{ll.synth.set(\outbus, output_picker.value)}
 		;
 
+		// TODO: replace meter when server boots
+		meter_view = View().maxHeight_(100);
+		this.make_meter;
+
 		title = StaticText()
 		.string_("Living Looper v1.0.0b")
 		.stringColor_(theme.color_highlight)
@@ -895,15 +1087,21 @@ LLStandalone {
 			[HLayout(
 				[title, stretch:2, align:\center],
 				[VLayout(
-					theme.label(model_picker, "Model", view:true),
+					theme.label(
+						HLayout(model_picker, force_dl), 
+					"Model", view:true),
 					HLayout(
 						theme.label(input_picker, "Input", view:true),
+						meter_view,
 						theme.label(output_picker, "Output", view:true)
 					)
 				), stretch:1, align:\center],
 				[server_control.gui, stretch:0],
 			), stretch:0]
 		))
+		.onClose_{
+			ll.notNil.if{ll.cleanup};
+		}
 		.front;
 
 	}
