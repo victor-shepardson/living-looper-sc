@@ -19,15 +19,20 @@ LLTheme {
 	}
 
 	label { |item, text, view=false|
+		var align = (item.class==Knob).if{\center}{\left};
 		var layout = VLayout(
-			StaticText().string_(text).stringColor_(color_text),
+			[StaticText().string_(text).stringColor_(color_text), align:align],
 			item
-		).spacing_(0);
+		).spacing_(0).margins_(0);
 		^ view.if{
 			View().layout_(layout)
 		}{
 			layout
 		}
+	}
+
+	knob_colors {
+		^ [color_fg, color_highlight, color_fg, color_highlight]
 	}
 }
 
@@ -1016,6 +1021,7 @@ LLStandalone {
 	var output_picker;
 	var meter_view;
 	var force_dl;
+	var input_gain_knob, dry_gain_knob;
 
 	var title;
 	var <ll;
@@ -1063,17 +1069,21 @@ LLStandalone {
 			};
 			// create Synth on the server
 			ll.synth = SynthDef(\ll++ll.id, {
-				var in = SoundIn.ar(\inbus.kr(input_picker.value));
+				var in = SoundIn.ar(\inbus.kr(input_picker.value))
+					* \input_gain.kr(input_gain_knob.value);
 				var out = ll.ar(in, blockSize:2048);
-				var stereo = Splay.ar(out);
-				Amplitude.ar(in);
+				var stereo = \dry_gain.kr(dry_gain_knob.value)/2.sqrt * in 
+					+ Splay.ar(out);
+				stereo = Limiter.ar(stereo);
 				Out.ar(\outbus.kr(output_picker.value), stereo);
 				Out.ar(ll.loops_bus, out);
 			}).play;
+
 			// add GUI to window
 			window.layout.add(ll.gui, stretch:1);
 			// increase window size
 			window.setInnerExtent(hsize, 560);
+
 		}
 	}
 
@@ -1085,6 +1095,9 @@ LLStandalone {
 	}
 
 	init {
+		// put these startup steps in a Routine, 
+		// so that when it is played on the AppClock,
+		// GUI calls and Condition.wait are both available
 		var force_dl_ = false;
 		var r = Routine{ arg forceDownload;
 			"-----LOAD-----".postln;
@@ -1104,7 +1117,7 @@ LLStandalone {
 			Server.default, {r.reset; r.play(AppClock)});
 
 		model_picker = PopUpMenu()
-		.allowsReselection_(true)
+		// .allowsReselection_(true)
 		.minWidth_(270)
 		.items_(LivingLooper.sources.keys.asList++["..."])
 		.background_(theme.color_highlight)
@@ -1147,7 +1160,6 @@ LLStandalone {
 		.action_{ll.synth.set(\outbus, output_picker.value)}
 		;
 
-		// TODO: replace meter when server boots
 		meter_view = View().maxHeight_(80);
 		this.make_meter;
 
@@ -1155,6 +1167,24 @@ LLStandalone {
 		.string_("Living Looper v1.0.0b")
 		.stringColor_(theme.color_highlight)
 		.font_(Font("Helvetica", 60));
+
+		input_gain_knob = Knob()
+		.color_(theme.knob_colors)
+		.mode_(\vert)
+		.action_{
+			ll.notNil.if{ll.synth.set(\input_gain, input_gain_knob.value)}
+		}
+		.toolTip_("input gain")
+		.value_(1);
+
+		dry_gain_knob = Knob()
+		.color_(theme.knob_colors)
+		.mode_(\vert)
+		.action_{
+			ll.notNil.if{ll.synth.set(\dry_gain, dry_gain_knob.value)}
+		}
+		.toolTip_("dry gain")
+		.value_(0);
 
 		window = Window.new(bounds:Rect(200, 500, hsize, 150))
 		.background_(theme.color_bg)
@@ -1172,6 +1202,10 @@ LLStandalone {
 					)
 				), stretch:1, align:\center],
 				[server_control.gui, stretch:0],
+			), stretch:0],
+			[HLayout(
+				theme.label(input_gain_knob, "Input", view:true), 
+				theme.label(dry_gain_knob, "Dry", view:true),
 			), stretch:0]
 		))
 		.onClose_{
