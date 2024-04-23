@@ -496,7 +496,7 @@ LivingLooper {
 			).parentPath +/+ "sources.scd");
 	}
 
-	*load { |name, source, forceDownload=false|
+	*load { |name, source, forceDownload=false| forkIfNeeded{
 		var filename;
 
 		var sources = LivingLooper.sources;
@@ -512,18 +512,22 @@ LivingLooper {
 			(forceDownload || File.exists(filename).not).if{
 				"downloading % from % to %".format(name, url, filename).postln;
 				// ["======THREAD======", thisThread, thisThread.clock].postln;
-				// forkIfNeeded{
-				{
+				AppClock.sched(0,{
+				// {
 					// ["======THREAD======", thisThread, thisThread.clock].postln;
 					Download(
 						url,
 						filename,
 						finishedFunc: {cond.test=true; cond.signal},
-						errorFunc: {Error("download '%' failed".format(url)).throw},
-						progressFunc: { |bt, br| "%: % of % bytes".format(name, br, bt).postln; }
+						errorFunc: {
+							Error("download '%' failed".format(url)).throw},
+						progressFunc: { |bt, br|
+							"%: % of % bytes".format(name, br, bt).postln; }
 					);
-					cond.wait;
-				}
+					// "downloading complete".postln;
+				});
+				cond.wait;
+				// }
 			}
 		}{
 			// assume source is a local filename
@@ -544,7 +548,7 @@ LivingLooper {
 		}{
 			"WARNING: server not running".postln;
 		}
-	}
+	}}
 
 	*ar { |name, input, loop=0, thru=0, auto=0, blockSize=0|
 		var out, zs; 
@@ -570,24 +574,84 @@ LLPendulum {
 		var bounds = view.bounds.width@view.bounds.height;
 		var pt = 0@0;
 		var mag = latents[0] * (l0_sign?1);
-		var ndrop = (latents.size - 1) % 4;
+		var ndrop = (latents.size - 3) % 3;
+		var width;
+		var color;
+		var segment = 0@1;
+		var clumps;
+		["first latent", latents[0]].postln;
 		mag = (mag.exp+1).log;
 		(mag>1).if{mag = mag.sqrt};
-		Pen.color = Color(0,0,0,0.3);
+		// mag.postln;
+		width = (mag/16).clip(0,0.2);
+		Pen.color = Color(0,0,0,0.1);
+		// Pen.color = Color(0,0,0,0.3);
+		// Pen.color = Color(0,0,0,1);
 		Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-		latents.drop(1).drop(0-ndrop).clump(4).do{ |item,i|
+		color = Color(
+			(latents[1]).sin+1/2,
+			1,
+			(latents[2]).sin+1/2,
+			// mag.clip(0,1)
+			)
+			// .scaleByAlpha
+			;
+		Pen.addOval(Rect.fromPoints(
+				pt-width +1/2*bounds, pt+width +1/2*bounds));
+		Pen.color = color;
+		Pen.fill;
+		clumps = latents.drop(3).drop(0-ndrop).clump(3);
+		segment = segment 
+			/ clumps.size.collect{ |i| 0.9**(i+1) }.sum
+			* mag.clip(0.1, 0.9)
+			;// * mag;
+		clumps.do{ |item,i|
 			var new_pt;
-			Pen.color = Color(
+			var new_width = width*0.9;
+			var start;
+			var new_color;
+			var perp;
+			var rad;
+			segment = segment.rotate(item[0]*1pi/6)*0.9;
+			new_pt = segment + pt;
+			rad = new_pt.rho;
+			// new_pt = new_pt / (new_pt.rho+1);
+			// new_pt = new_pt / (rad>0.5).if{rad-0.5 + 1}{1};
+			// draw a quad
+			perp = (new_pt - pt).rotate(0.5pi);
+			perp = perp/(perp.rho+1e-7);
+			start = pt+(width*perp) +1/2*bounds;
+			Pen.moveTo(start);
+			Pen.lineTo(new_pt+(new_width*perp) +1/2*bounds);
+			Pen.lineTo(new_pt-(new_width*perp) +1/2*bounds);
+			Pen.lineTo(pt-(width*perp) +1/2*bounds);
+			Pen.lineTo(start);
+			// // fill gradient
+			new_color = Color(
+				(item[1]).sin+1/2,
+				// i+1/clumps.size,
+				(clumps.size-1-i)/clumps.size,
+				// (i/8*6).cos+1/2,
 				(item[2]).sin+1/2,
-				(i/8*6).cos+1/2,
-				(item[3]).sin+1/2);
-			Pen.moveTo(pt+1/2*bounds);
-			new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
-			new_pt = new_pt / (new_pt.abs+1);
-			Pen.lineTo(new_pt+1/2*bounds);
+				// mag.clip(0,1)
+				)
+				// .scaleByAlpha
+				;
+			Pen.fillAxialGradient(
+				pt +1/2*bounds, new_pt +1/2*bounds, color, new_color);
+
+			// Pen.addWedge(new_pt+1/2*bounds, new_width, 0, 2pi);
+			Pen.addOval(Rect.fromPoints(
+				new_pt-new_width +1/2*bounds, new_pt+new_width +1/2*bounds));
+			Pen.color = new_color;
+			Pen.fill;
+			// Pen.moveTo(pt+1/2*bounds);
+			// Pen.lineTo(new_pt+1/2*bounds);
 			pt = new_pt;
-			Pen.width = bounds.x/10 * mag/(i/3+1);
-			Pen.stroke;
+			width = new_width;
+			color = new_color;
+			// Pen.width = bounds.x/10 * size;
+			// Pen.stroke;
 		}
 	}
 }
@@ -972,7 +1036,7 @@ LLStandalone {
 			).view))
 		;
 	}
-	
+
 	make_synth {
 		server_control.server.serverRunning.if{
 			var n_out = 2; // TODO control this
@@ -990,11 +1054,7 @@ LLStandalone {
 			meter_view.removeAll;
 			this.make_meter;
 
-			// runs when server booted or model changed
-			// TODO: forceDownload option
-			LivingLooper.load(
-				\standalone, model_picker.item, 
-				forceDownload:false);
+
 			ll = LLGUI(\standalone);
 			// copy previous MIDI mapper state over
 			midi_state.notNil.if{ 
@@ -1006,11 +1066,14 @@ LLStandalone {
 				var in = SoundIn.ar(\inbus.kr(input_picker.value));
 				var out = ll.ar(in, blockSize:2048);
 				var stereo = Splay.ar(out);
+				Amplitude.ar(in);
 				Out.ar(\outbus.kr(output_picker.value), stereo);
 				Out.ar(ll.loops_bus, out);
 			}).play;
+			// add GUI to window
 			window.layout.add(ll.gui, stretch:1);
-			window.setInnerExtent(hsize, 550);
+			// increase window size
+			window.setInnerExtent(hsize, 560);
 		}
 	}
 
@@ -1022,11 +1085,23 @@ LLStandalone {
 	}
 
 	init {
+		var force_dl_ = false;
+		var r = Routine{ arg forceDownload;
+			"-----LOAD-----".postln;
+			LivingLooper.load(
+				\standalone, model_picker.item, 
+				forceDownload: force_dl_);
+			force_dl = false;
+			"-----STOP-----".postln;
+			this.stop_synth;
+			"-----MAKE-----".postln;
+			this.make_synth;
+		};
 
 		theme = theme ? LLTheme.new;
 
 		server_control = LLServerControl.new(
-			Server.default, {this.stop_synth; this.make_synth});
+			Server.default, {r.reset; r.play(AppClock)});
 
 		model_picker = PopUpMenu()
 		.allowsReselection_(true)
@@ -1042,8 +1117,7 @@ LLStandalone {
 					model_picker.valueAction_(0);
 				})
 			}{
-				this.stop_synth;
-				this.make_synth;
+				r.reset; r.play(AppClock);
 			}
 		};
 
@@ -1052,7 +1126,8 @@ LLStandalone {
 		.maxWidth_(25)
 		.toolTip_("force download of current model (to get updates)")
 		.action_{
-			LivingLooper.load(\standalone, model_picker.item, forceDownload:true)
+			force_dl_ = true;
+			r.reset; r.play(AppClock);
 		};
 
 		input_picker = PopUpMenu()
@@ -1073,7 +1148,7 @@ LLStandalone {
 		;
 
 		// TODO: replace meter when server boots
-		meter_view = View().maxHeight_(100);
+		meter_view = View().maxHeight_(80);
 		this.make_meter;
 
 		title = StaticText()
