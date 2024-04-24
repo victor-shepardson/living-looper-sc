@@ -55,36 +55,15 @@ LLMeter : ServerMeterView {
 			// .numMajorTicks_(3)
 		};
 
-		theme = theme ? LLTheme.new; 
-
+		/////// from ServerMeterView.init
 		server = aserver;
-
 		numIns = anumIns ?? { server.options.numInputBusChannels };
 		numOuts = anumOuts ?? { server.options.numOutputBusChannels };
-
-		// viewWidth = this.class.getWidth(anumIns, anumOuts);
-
-		// leftUp = leftUp ? (0@0);
-
-		view = CompositeView(
-			parent, 
-			// Rect(leftUp.x, leftUp.y, viewWidth, height) 
-			);
+		view = CompositeView(parent);
 		view.onClose_( { this.stop });
-		// innerView = CompositeView(view, Rect(10, 25, viewWidth, height) );
-		// innerView.addFlowLayout(0@0, gapWidth@gapWidth);
+		//////
 
-		// dB scale
-		// UserView(innerView, Rect(0, 0, meterWidth, 195)).drawFunc_( {
-		// 	try {
-		// 		Pen.color = \QPalette.asClass.new.windowText;
-		// 	} {
-		// 		Pen.color = Color.white;
-		// 	};
-		// 	Pen.font = Font.sansSerif(10).boldVariant;
-		// 	Pen.stringCenteredIn("0", Rect(0, 0, meterWidth, 12));
-		// 	Pen.stringCenteredIn("-80", Rect(0, 170, meterWidth, 12));
-		// });
+		theme = theme ? LLTheme.new; 
 
 		// ins
 		if(numIns > 0) {
@@ -100,22 +79,6 @@ LLMeter : ServerMeterView {
 			});
 		};
 
-		// if((numIns > 0) && (numOuts > 0)) {
-		// 	// divider
-		// 	UserView().drawFunc_( {|view|
-		// 		var height = view.bounds.height;
-		// 		try {
-		// 			Pen.color = \QPalette.asClass.new.windowText;
-		// 		} {
-		// 			Pen.color = Color.white;
-		// 		};
-		// 		Pen.line(
-		// 			((meterWidth + gapWidth) * 0.5)@0, 
-		// 			((meterWidth + gapWidth) * 0.5)@height);
-		// 		Pen.stroke;
-		// 	});
-		// };
-
 		// outs
 		if(numOuts > 0) {
 			// StaticText(view, Rect(10, 5, 100, 15))
@@ -129,22 +92,6 @@ LLMeter : ServerMeterView {
 				.stringColor_(theme.color_text)
 			});
 		};
-		// if(numOuts > 0) {
-		// 	StaticText(view, Rect(10 + if(numIns > 0) { (numIns + 2) * (meterWidth + gapWidth) } { 0 }, 5, 100, 15))
-		// 	.font_(Font.sansSerif(10).boldVariant)
-		// 	.string_("Outputs");
-		// 	outmeters = Array.fill( numOuts, { arg i;
-		// 		var comp;
-		// 		comp = CompositeView(innerView, Rect(0, 0, meterWidth, 195));
-		// 		StaticText(comp, Rect(0, 180, meterWidth, 15))
-		// 		.font_(Font.sansSerif(9).boldVariant)
-		// 		.string_(i.asString);
-		// 		levelIndic = LevelIndicator( comp, Rect(0, 0, meterWidth, 180) ).warning_(0.9).critical_(1.0)
-		// 		.drawsPeak_(true)
-		// 		.numTicks_(9)
-		// 		.numMajorTicks_(3);
-		// 	});
-		// };
 
 		view.layout_(HLayout(*(
 			numIns.collect{ |i| VLayout(
@@ -178,11 +125,11 @@ LLServerControl {
 		theme = theme ? LLTheme.new;
 		boot_button = Button.new
 		.states_([
-			["boot server",theme.color_green,theme.color_fg],
-			["booting...",theme.color_yellow,theme.color_bg],
-			["quit server",theme.color_alert,theme.color_bg]])
+			["start audio",theme.color_green,theme.color_fg],
+			["starting...",theme.color_yellow,theme.color_bg],
+			["quit audio",theme.color_alert,theme.color_bg]])
 		.value_(server.serverRunning.asInteger)
-		.toolTip_("boot server")
+		.toolTip_("boot SuperCollider server")
 		.action_{
 			(boot_button.value==1).if{
 				server.options.sampleRate = rate_box.value;
@@ -198,6 +145,9 @@ LLServerControl {
 				};
 			}{
 				server.quit;
+				// NOTE: this is to remove the broken doOnServerBoot registered
+				// by NN.ar, since we always reload models after rebooting anyway
+				NN.models.do(ServerBoot.remove(_, Server.default))
 			}
 		};
 
@@ -239,7 +189,7 @@ LLServerControl {
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
 		.maxWidth_(boxwidth)
-		.toolTip_("set hardware block size (requires server reboot)");
+		.toolTip_("set hardware block size (requires audio restart)");
 
 		cblock_box = NumberBox()
 		.value_(128)
@@ -249,20 +199,20 @@ LLServerControl {
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
 		.maxWidth_(boxwidth)
-		.toolTip_("set supercollider control block size (requires server reboot)");
+		.toolTip_("set supercollider control block size (requires audio restart)");
 
 		indevice_drop = PopUpMenu()
 		.items_(ServerOptions.inDevices)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
-		.toolTip_("set input device (requires server reboot)")
+		.toolTip_("set input device (requires audio restart)")
 		;
 
 		outdevice_drop = PopUpMenu()
 		.items_(ServerOptions.outDevices)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
-		.toolTip_("set output device (requires server reboot)")
+		.toolTip_("set output device (requires audio restart)")
 		;
 
 		^this
@@ -577,27 +527,36 @@ LivingLooper {
 LLPendulum {
 	*draw { |view, latents, l0_sign|
 		var bounds = view.bounds.width@view.bounds.height;
-		var pt = 0@0;
 		var mag = latents[0] * (l0_sign?1);
-		var ndrop = (latents.size - 3) % 3;
+		var pt;
+		var seg_taper = 0.9;
+		var width_taper = 0.9;
+		var nspecial = 2;
+		var ndrop = (latents.size - nspecial) % 3;
 		var width;
 		var color;
 		var segment = 0@1;
 		var clumps;
-		["first latent", latents[0]].postln;
+		// ["first latent", latents[0]].postln;
 		mag = (mag.exp+1).log;
 		(mag>1).if{mag = mag.sqrt};
+		// pt = 0@((mag-1).clip(-0.9, 0));
+		pt = 0@0;
 		// mag.postln;
-		width = (mag/16).clip(0,0.2);
+		width = (mag.sqrt/16).clip(0,0.2);
+		// Pen.color = LLTheme.new.color_bg.alpha_(0.1);
 		Pen.color = Color(0,0,0,0.1);
 		// Pen.color = Color(0,0,0,0.3);
 		// Pen.color = Color(0,0,0,1);
 		Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
 		color = Color(
-			(latents[1]).sin+1/2,
+			// (latents[1]).sin+1/2,
+			0.4,
 			1,
-			(latents[2]).sin+1/2,
+			0.5,
+			// (latents[2]).sin+1/2,
 			// mag.clip(0,1)
+			// 0.1
 			)
 			// .scaleByAlpha
 			;
@@ -605,19 +564,20 @@ LLPendulum {
 				pt-width +1/2*bounds, pt+width +1/2*bounds));
 		Pen.color = color;
 		Pen.fill;
-		clumps = latents.drop(3).drop(0-ndrop).clump(3);
+		clumps = latents.drop(nspecial).drop(0-ndrop).clump(3);
 		segment = segment 
-			/ clumps.size.collect{ |i| 0.9**(i+1) }.sum
+			/ clumps.size.collect{ |i| seg_taper**(i+1) }.sum
 			* mag.clip(0.1, 0.9)
 			;// * mag;
 		clumps.do{ |item,i|
 			var new_pt;
-			var new_width = width*0.9;
+			var new_width = width*width_taper;
 			var start;
 			var new_color;
 			var perp;
 			var rad;
-			segment = segment.rotate(item[0]*1pi/6)*0.9;
+			var extent = (i+1)/clumps.size;
+			segment = segment.rotate(item[0]*1pi/6)*seg_taper;
 			new_pt = segment + pt;
 			rad = new_pt.rho;
 			// new_pt = new_pt / (new_pt.rho+1);
@@ -635,10 +595,12 @@ LLPendulum {
 			new_color = Color(
 				(item[1]).sin+1/2,
 				// i+1/clumps.size,
-				(clumps.size-1-i)/clumps.size,
+				// 1-extent,
+				(1-extent).pow(2.pow(0-latents[1] /2))*0.8+0.2,
 				// (i/8*6).cos+1/2,
 				(item[2]).sin+1/2,
 				// mag.clip(0,1)
+				// extent.sqrt.clip(0.2, 1)
 				)
 				// .scaleByAlpha
 				;
@@ -767,20 +729,36 @@ LLGUI {
 
 	ar { |input, blockSize=0|
 		var out, zs; 
-		var mx;
+		var mx, tr;
 		# out, zs = LivingLooper.ar(
 			name, input, 
 			loop:\loop.kr(0), thru:\thru.kr(0), auto:\auto.kr(0),
 			blockSize:blockSize);
 		// zs are packed in audio signals;
-		// use zs as its own trigger
+
 		mx = Mix.new(zs.abs);
+		
+		// use zs as its own trigger
+		// nLatent.do{ |zi|
+		// 	// var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
+		// 	// SendReply.ar(trig, "/living_looper_monitor", zs, zi)
+		// 	SendReply.ar(mx, "/living_looper_monitor_"++this.id, zs, zi);
+		// 	mx = Delay1.ar(mx);
+		// };
+
+		// trigger on consecutive 0, integer
+		tr = Delay1.ar(mx eq: 0) * (mx>0) * (mx.frac eq: 0);
+		// env to fade out if there's no trigger for a while
+		// var env = EnvGen.ar(Env([0,1,1,0], [0, 4096*SampleDur.ir, 0.1]), tr);
+		// expand into n audio signals
 		nLatent.do{ |zi|
-			// var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
-			// SendReply.ar(trig, "/living_looper_monitor", zs, zi)
-			SendReply.ar(mx, "/living_looper_monitor_"++this.id, zs, zi);
-			mx = Delay1.ar(mx);
-		};
+			// var delay_s = (nLatent-1-zi) * SampleDur.ir;
+			tr = Delay1.ar(tr);
+			// synced individual signals (for sending to external RAVE decoders)
+			// DelayN.ar(Latch.ar(sig, tr), 0.1, delay_s);
+			// OSC to GUI
+			SendReply.ar(tr, "/living_looper_monitor_"++this.id, zs, zi);
+		}
 		// zs.scope;
 		^ out
 	}
@@ -792,7 +770,7 @@ LLGUI {
 	init {
 		nLatent = NN(name, \encode).numOutputs;
 		nLoops = NN(name, \forward).numOutputs;
-		id = 99999999999.rand;
+		id = UniqueID.next;
 		theme = theme ? LLTheme.new;
 
 		mapper = LLMIDIMapper.new;
@@ -942,6 +920,7 @@ LLGUI {
 	destroy {
 		gui.remove;
 		synth !? (_.free);
+		this.cleanup;
 	}
 
 	//// programmatic access to GUI actions
@@ -1021,7 +1000,7 @@ LLStandalone {
 	var output_picker;
 	var meter_view;
 	var force_dl;
-	var input_gain_knob, dry_gain_knob;
+	var input_gain_knob, dry_gain_knob, output_gain_knob;
 
 	var title;
 	var <ll;
@@ -1031,14 +1010,17 @@ LLStandalone {
 	var hsize = 1200;
 
 	*new { |...args|
+		// NOTE: best for apple silicon
+		"OMP_NUM_THREADS".setenv("1"); 
+
 		^super.newCopyArgs(*args).init;
 	}
 
 	make_meter {
 		meter_view.layout_(VLayout(LLMeter(
 			server_control.server, 
-			numIns:server_control.server.options.numInputBusChannels,
-			numOuts:server_control.server.options.numOutputBusChannels,
+			numIns:server_control.inchan_box.value.asInteger,
+			numOuts:server_control.outchan_box.value.asInteger,
 			).view))
 		;
 	}
@@ -1074,7 +1056,8 @@ LLStandalone {
 				var out = ll.ar(in, blockSize:2048);
 				var stereo = \dry_gain.kr(dry_gain_knob.value)/2.sqrt * in 
 					+ Splay.ar(out);
-				stereo = Limiter.ar(stereo);
+				stereo = Limiter.ar(
+					stereo * 2 * \output_gain.kr(output_gain_knob.value));
 				Out.ar(\outbus.kr(output_picker.value), stereo);
 				Out.ar(ll.loops_bus, out);
 			}).play;
@@ -1175,7 +1158,7 @@ LLStandalone {
 			ll.notNil.if{ll.synth.set(\input_gain, input_gain_knob.value)}
 		}
 		.toolTip_("input gain")
-		.value_(1);
+		.value_(0.5);
 
 		dry_gain_knob = Knob()
 		.color_(theme.knob_colors)
@@ -1183,8 +1166,17 @@ LLStandalone {
 		.action_{
 			ll.notNil.if{ll.synth.set(\dry_gain, dry_gain_knob.value)}
 		}
-		.toolTip_("dry gain")
+		.toolTip_("dry gain relative to input")
 		.value_(0);
+
+		output_gain_knob = Knob()
+		.color_(theme.knob_colors)
+		.mode_(\vert)
+		.action_{
+			ll.notNil.if{ll.synth.set(\output_gain, output_gain_knob.value)}
+		}
+		.toolTip_("master output gain")
+		.value_(0.5);
 
 		window = Window.new(bounds:Rect(200, 500, hsize, 150))
 		.background_(theme.color_bg)
@@ -1206,6 +1198,7 @@ LLStandalone {
 			[HLayout(
 				theme.label(input_gain_knob, "Input", view:true), 
 				theme.label(dry_gain_knob, "Dry", view:true),
+				theme.label(output_gain_knob, "Output", view:true),
 			), stretch:0]
 		))
 		.onClose_{
