@@ -528,7 +528,7 @@ LivingLooper {
 			// filename = modelDir.postln +/+ (name++".ts");
 			filename = modelDir +/+ PathName(url).fileName;
 			(forceDownload || File.exists(filename).not).if{
-				"downloading % from % to %".format(name, url, filename).postln;
+				"downloading % from % to %".format(source, url, filename).postln;
 				// ["======THREAD======", thisThread, thisThread.clock].postln;
 				AppClock.sched(0,{
 				// {
