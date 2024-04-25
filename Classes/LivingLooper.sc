@@ -159,7 +159,9 @@ LLServerControl {
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
 		.maxWidth_(boxwidth)
-		.toolTip_("set sampling rate (requires server reboot)");
+		.toolTip_("set sampling rate (should match model)")
+		// .enabled_(false)
+		;
 
 		inchan_box = NumberBox()
 		.value_(8)
@@ -450,6 +452,67 @@ LivingLooper {
 			LivingLooper.filenameSymbol.asString
 			).parentPath +/+ "sources.scd");
 	}
+
+	*binaries {
+		^ thisProcess.interpreter.executeFile(PathName(
+			LivingLooper.filenameSymbol.asString
+			).parentPath +/+ "binaries.scd");
+	}
+
+	*detectNN{
+		^ \NNModel.asClass.notNil;
+	}
+
+	*installNN{ //forkIfNeeded{
+		var unixCmdPostStdOut = { arg str, maxLineLength=1024;
+			var pipe, line;
+			("> "++str).postln;
+			pipe = Pipe.new(str, "r");
+			line = pipe.getLine(maxLineLength);
+			while({line.notNil}, {("\t"++line).postln; line=pipe.getLine});
+			pipe.close;
+		};
+		var platform = thisProcess.platformClass.asSymbol;
+		var arch = Platform.architecture;
+		var key = (platform ++ \_ ++arch).asSymbol;
+		var url = LivingLooper.binaries[key];
+		var tempDir = Platform.defaultTempDir;
+		var filename = tempDir +/+ PathName(url).fileName;
+		var dl_cmd, unzip_cmd, mv_cmd, clean_cmd;
+		dl_cmd = "curl -vL % -o %";
+		// unzip_cmd = "unzip % -d %";
+		unzip_cmd = "tar -xvf % -C %";
+		mv_cmd = (platform==\WindowsPlatform).if{"move % %"}{"mv % %"};
+		clean_cmd = (platform==\WindowsPlatform).if{"del %"}{"rm %"};
+
+		// download
+		(unixCmdPostStdOut.(dl_cmd.format(
+			url.shellQuote, filename.shellQuote
+		))>0).if{Error("failed to download NN.ar").throw};
+		// unzip
+		(unixCmdPostStdOut.(
+			unzip_cmd.format(filename.shellQuote, tempDir.shellQuote
+		))>0).if{Error("failed to unzip NN.ar").throw};
+		// move
+		(unixCmdPostStdOut.(mv_cmd.format(
+			(tempDir +/+ "nn.ar").shellQuote,
+			(Platform.userExtensionDir +/+ "nn.ar").shellQuote
+		))>0).if{Error("failed to move NN.ar to Extensions").throw};
+		// cleanup
+		unixCmdPostStdOut.(clean_cmd.format(
+			filename.shellQuote)
+		); //ok if this fails
+
+		(platform==\OSXPlatform).if{
+			/*runInTerminal(
+				"xattr -d -r com.apple.quarantine"
+				+ shellQuote(Platform.userExtensionDir +/+ "nn.ar"))*/
+			unixCmdPostStdOut.(
+				"xattr -d -r com.apple.quarantine"
+				+ (Platform.userExtensionDir +/+ "nn.ar").shellQuote)
+		};
+		"NN.ar has been installed".postln;
+	}//}
 
 	*load { |name, source, forceDownload=false| forkIfNeeded{
 		var filename;
@@ -1077,12 +1140,51 @@ LLStandalone {
 		};
 	}
 
+	install {
+		LivingLooper.detectNN.not.if{
+			// dialog to confirm installing NN
+			var cond = Condition.new;
+			"WARNING: NN.ar not found".postln;
+			Window("install NN.ar")
+			.setInnerExtent(500,100)
+			.front
+			.background_(theme.color_bg)
+			.layout_(VLayout(
+				StaticText()
+				.string_("Living Looper requires the NN.ar SuperCollider extension.")
+				.stringColor_(theme.color_highlight),
+				HLayout(
+					Button()
+					.states_([["Automatically install NN.ar", theme.color_text, theme.color_fg]])
+					.toolTip_("install NN.ar and restart SuperCollider")
+					.action_{
+						"attempting to install...".postln;
+						LivingLooper.installNN;
+						cond.test=true; cond.signal
+					},
+					Button()
+					.states_([["No thanks, I'll install it myself", theme.color_text, theme.color_fg]])
+					.toolTip_("open the download page for NN.ar")
+					.action_{
+						"please install NN.ar and restart SuperCollider".postln;
+						"https://github.com/elgiano/nn.ar/releases".openOS;
+						cond.test=true; cond.signal
+					},
+			)));
+			cond.wait;
+			"restarting interpreter...".postln;
+			thisProcess.recompile;
+			cond.test=false; cond.wait;
+		};
+	}
+
 	init {
 		// put these startup steps in a Routine, 
 		// so that when it is played on the AppClock,
 		// GUI calls and Condition.wait are both available
 		var force_dl_ = false;
-		var r = Routine{ arg forceDownload;
+		var r = Routine{
+			this.install;
 			"-----LOAD-----".postln;
 			LivingLooper.load(
 				\standalone, model_picker.item, 
@@ -1178,7 +1280,7 @@ LLStandalone {
 		.toolTip_("master output gain")
 		.value_(0.5);
 
-		window = Window.new(bounds:Rect(200, 500, hsize, 150))
+		window = Window.new("Living Looper", bounds:Rect(200, 500, hsize, 150))
 		.background_(theme.color_bg)
 		.layout_(VLayout(
 			[HLayout(
