@@ -120,6 +120,11 @@ LLServerControl {
 		^super.newCopyArgs(*args).init;
 	}
 
+	get_box { arg box;
+		var val = box.value.asInteger;
+		^ (val==0).if{nil}{val}
+	}
+
 	init {
 		server = server ? Server.default;
 		theme = theme ? LLTheme.new;
@@ -132,9 +137,9 @@ LLServerControl {
 		.toolTip_("boot SuperCollider server")
 		.action_{
 			(boot_button.value==1).if{
-				server.options.sampleRate = rate_box.value;
-				server.options.hardwareBufferSize = hblock_box.value.asInteger;
-				server.options.blockSize = cblock_box.value.asInteger;
+				server.options.sampleRate = this.get_box(rate_box);
+				server.options.hardwareBufferSize = this.get_box(hblock_box);
+				server.options.blockSize = this.get_box(cblock_box);
 				server.options.inDevice = indevice_drop.item;
 				server.options.outDevice = outdevice_drop.item;
 				server.options.numInputBusChannels = inchan_box.value.asInteger;
@@ -184,7 +189,7 @@ LLServerControl {
 		.toolTip_("set max number of output channels when opening audio device");
 
 		hblock_box = NumberBox()
-		.value_(128)
+		.value_(server.options.hardwareBufferSize ? 0)
 		.decimals_(0)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
@@ -194,7 +199,7 @@ LLServerControl {
 		.toolTip_("set hardware block size (requires audio restart)");
 
 		cblock_box = NumberBox()
-		.value_(128)
+		.value_(server.options.blockSize)
 		.decimals_(0)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
@@ -487,8 +492,7 @@ LivingLooper {
 		var tempDir = Platform.defaultTempDir;
 		var filename = tempDir +/+ PathName(url).fileName;
 		var dl_cmd, unzip_cmd, mv_cmd, cp_cmd, clean_cmd;
-		dl_cmd = "curl -vL % -o %";
-		// unzip_cmd = "unzip % -d %";
+		dl_cmd = "curl -L % -o %";
 		unzip_cmd = "tar -xvf % -C %";
 		mv_cmd = (platform==\windows).if{"move % %"}{"mv % %"};
 		cp_cmd = (platform==\windows).if{"copy % % /y"}{"cp % %"};
