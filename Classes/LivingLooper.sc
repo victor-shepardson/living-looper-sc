@@ -486,11 +486,12 @@ LivingLooper {
 		var url = LivingLooper.binaries[key];
 		var tempDir = Platform.defaultTempDir;
 		var filename = tempDir +/+ PathName(url).fileName;
-		var dl_cmd, unzip_cmd, mv_cmd, clean_cmd;
+		var dl_cmd, unzip_cmd, mv_cmd, cp_cmd, clean_cmd;
 		dl_cmd = "curl -vL % -o %";
 		// unzip_cmd = "unzip % -d %";
 		unzip_cmd = "tar -xvf % -C %";
 		mv_cmd = (platform==\windows).if{"move % %"}{"mv % %"};
+		cp_cmd = (platform==\windows).if{"copy % %"}{"cp % %"};
 		clean_cmd = (platform==\windows).if{"del %"}{"rm %"};
 
 		// download
@@ -511,10 +512,14 @@ LivingLooper {
 			shellQuote.(filename)
 		)); //ok if this fails
 
+		(platform==\windows).if{
+			(unixCmdPostStdOut.(cp_cmd.format(
+				shellQuote.(Platform.userExtensionDir +/+ "nn.ar" +/+ "ignore" +/+ "*"),
+				Platform.resourceDir
+			))>0).if{Error("failed to move DLLs to resource dir").throw};
+		};
+
 		(platform==\osx).if{
-			/*runInTerminal(
-				"xattr -d -r com.apple.quarantine"
-				+ shellQuote(Platform.userExtensionDir +/+ "nn.ar"))*/
 			unixCmdPostStdOut.(
 				"xattr -d -r com.apple.quarantine"
 				+ (Platform.userExtensionDir +/+ "nn.ar").shellQuote)
@@ -548,7 +553,7 @@ LivingLooper {
 						errorFunc: {
 							Error("download '%' failed".format(url)).throw},
 						progressFunc: { |bt, br|
-							"%: % of % bytes".format(name, br, bt).postln; }
+							"%: % of % bytes".format(source, br, bt).postln; }
 					);
 					// "downloading complete".postln;
 				});
