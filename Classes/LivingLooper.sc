@@ -491,7 +491,7 @@ LivingLooper {
 		// unzip_cmd = "unzip % -d %";
 		unzip_cmd = "tar -xvf % -C %";
 		mv_cmd = (platform==\windows).if{"move % %"}{"mv % %"};
-		cp_cmd = (platform==\windows).if{"copy % %"}{"cp % %"};
+		cp_cmd = (platform==\windows).if{"copy % % /y"}{"cp % %"};
 		clean_cmd = (platform==\windows).if{"del %"}{"rm %"};
 
 		// download
@@ -515,7 +515,7 @@ LivingLooper {
 		(platform==\windows).if{
 			(unixCmdPostStdOut.(cp_cmd.format(
 				shellQuote.(Platform.userExtensionDir +/+ "nn.ar" +/+ "ignore" +/+ "*"),
-				Platform.resourceDir
+				shellQuote.(Platform.resourceDir)
 			))>0).if{Error("failed to move DLLs to resource dir").throw};
 		};
 
