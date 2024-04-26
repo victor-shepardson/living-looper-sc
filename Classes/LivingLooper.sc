@@ -494,20 +494,20 @@ LivingLooper {
 
 		// download
 		(unixCmdPostStdOut.(dl_cmd.format(
-			url.shellQuote, filename.shellQuote
+			shellQuote.(url), shellQuote.(filename)
 		))>0).if{Error("failed to download NN.ar").throw};
 		// unzip
 		(unixCmdPostStdOut.(
-			unzip_cmd.format(filename.shellQuote, tempDir.shellQuote
+			unzip_cmd.format(shellQuote.(filename), shellQuote.(tempDir)
 		))>0).if{Error("failed to unzip NN.ar").throw};
 		// move
 		(unixCmdPostStdOut.(mv_cmd.format(
-			(tempDir +/+ "nn.ar").shellQuote,
-			(Platform.userExtensionDir +/+ "nn.ar").shellQuote
+			shellQuote.(tempDir +/+ "nn.ar"),
+			shellQuote.(Platform.userExtensionDir +/+ "nn.ar")
 		))>0).if{Error("failed to move NN.ar to Extensions").throw};
 		// cleanup
 		unixCmdPostStdOut.(clean_cmd.format(
-			filename.shellQuote)
+			shellQuote.(filename)
 		); //ok if this fails
 
 		(platform==\osx).if{
