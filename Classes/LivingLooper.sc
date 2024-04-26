@@ -1,6 +1,7 @@
 LLTheme {
 	var <color_bg, <color_fg, <color_dark, <color_text, <color_alert, <color_highlight;
 	var <color_green, <color_yellow;
+	var <font_label, <font_button;
 	var <spacing;
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
@@ -16,12 +17,19 @@ LLTheme {
 		color_green = color_green ? Color(0.5,1,0.6);
 		color_yellow = color_yellow ? Color(1,0.9,0.5);
 		spacing = 4;
+		font_label = Font.sansSerif(13);//.boldVariant;
+		font_button = Font.sansSerif(13);//.boldVariant;
+
 	}
 
 	label { |item, text, view=false|
 		var align = (item.class==Knob).if{\center}{\left};
 		var layout = VLayout(
-			[StaticText().string_(text).stringColor_(color_text), align:align],
+			[
+				StaticText().string_(text)
+				.stringColor_(color_text)
+				.font_(font_label)
+				, align:align],
 			item
 		).spacing_(0).margins_(0);
 		^ view.if{
@@ -115,6 +123,7 @@ LLServerControl {
 	var <inchan_box, <outchan_box, <indevice_drop, <outdevice_drop;
 
 	var boxwidth = 92;
+	var dropwidth = 230;
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
@@ -135,6 +144,7 @@ LLServerControl {
 			["quit audio",theme.color_alert,theme.color_bg]])
 		.value_(server.serverRunning.asInteger)
 		.toolTip_("boot SuperCollider server")
+		.font_(theme.font_button)
 		.action_{
 			(boot_button.value==1).if{
 				server.options.sampleRate = this.get_box(rate_box);
@@ -163,6 +173,7 @@ LLServerControl {
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.font_(theme.font_button)
 		.maxWidth_(boxwidth)
 		.toolTip_("set sampling rate (should match model)")
 		// .enabled_(false)
@@ -175,6 +186,7 @@ LLServerControl {
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.font_(theme.font_button)
 		.maxWidth_(boxwidth)
 		.toolTip_("set max number of input channels when opening audio device");
 
@@ -185,6 +197,7 @@ LLServerControl {
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.font_(theme.font_button)
 		.maxWidth_(boxwidth)
 		.toolTip_("set max number of output channels when opening audio device");
 
@@ -195,6 +208,7 @@ LLServerControl {
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.font_(theme.font_button)
 		.maxWidth_(boxwidth)
 		.toolTip_("set hardware block size (requires audio restart)");
 
@@ -205,6 +219,7 @@ LLServerControl {
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
+		.font_(theme.font_button)
 		.maxWidth_(boxwidth)
 		.toolTip_("set supercollider control block size (requires audio restart)");
 
@@ -212,6 +227,8 @@ LLServerControl {
 		.items_(ServerOptions.inDevices)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
+		.font_(theme.font_button)
+		.maxWidth_(dropwidth)
 		.toolTip_("set input device (requires audio restart)")
 		;
 
@@ -219,6 +236,8 @@ LLServerControl {
 		.items_(ServerOptions.outDevices)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
+		.font_(theme.font_button)
+		.maxWidth_(dropwidth)
 		.toolTip_("set output device (requires audio restart)")
 		;
 
@@ -1265,10 +1284,16 @@ LLStandalone {
 		meter_view = View().maxHeight_(80);
 		this.make_meter;
 
-		title = StaticText()
-		.string_("Living Looper v1.0.0b")
-		.stringColor_(theme.color_highlight)
-		.font_(Font("Helvetica", 60));
+		title = VLayout(
+			StaticText()
+			.string_("Living Looper")
+			.stringColor_(theme.color_highlight)
+			.font_(Font("Helvetica", 60)),
+			StaticText()
+			.string_("v1.0.0b")
+			.stringColor_(theme.color_highlight)
+			.font_(Font("Helvetica", 32)),
+		).spacing_(0);
 
 		input_gain_knob = Knob()
 		.color_(theme.knob_colors)
