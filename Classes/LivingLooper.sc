@@ -337,6 +337,7 @@ LLMIDIMapper {
 		.states_([
 			["MIDI map", theme.color_highlight, theme.color_fg],
 			["done", theme.color_dark, theme.color_highlight]])
+		.font_(theme.font_button)
 		.toolTip_("toggle MIDI mapping. when mapping, click a button in the GUI, and it will become associated with the next MIDI message to arrive.")
 		.action_{
 			// update button appearances
@@ -345,6 +346,7 @@ LLMIDIMapper {
 
 		save_button = Button()
 		.states_([["save map", theme.color_text, theme.color_fg]])
+		.font_(theme.font_button)
 		.toolTip_("save the current MIDI map as a file")
 		.action_{
 			Dialog.savePanel({ |path|
@@ -354,6 +356,7 @@ LLMIDIMapper {
 
 		load_button = Button()
 		.states_([["load map", theme.color_text, theme.color_fg]])
+		.font_(theme.font_button)
 		.toolTip_("load the MIDI map from a file")
 		.action_{
 			Dialog.openPanel({ |path|
@@ -879,6 +882,7 @@ LLGUI {
 			mapper.button(\loop++i.asSymbol).states_([
 				["record "++(i+1).asString, theme.color_text, theme.color_fg],
 				["play "++(i+1), theme.color_alert, theme.color_bg]])
+				.font_(theme.font_button)
 				.toolTip_("start/end recording loop"+(i+1));
 
 		};
@@ -886,6 +890,7 @@ LLGUI {
 		eraseButtons = nLoops.collect{ |i|
 			mapper.button(\erase++i.asSymbol).states_([
 				["erase "++i.asString,theme.color_text,theme.color_dark]])
+				.font_(theme.font_button)
 				.toolTip_("erase loop"+(i+1));
 		};
 
@@ -917,11 +922,13 @@ LLGUI {
 			.states_([
 				["auto", theme.color_text, theme.color_fg],
 				["auto", theme.color_alert, theme.color_bg]])
+			.font_(theme.font_button)
 			.toolTip_("automatically record loops in response to input");
 		thruButton = mapper.button(\thru)
 			.states_([
 				["thru", theme.color_text, theme.color_fg], 
 				["thru", theme.color_alert, theme.color_bg]])
+			.font_(theme.font_button)
 			.toolTip_("hear processed input while recording a loop");
 		// thruButton = CheckBox().string_("thru");
 
