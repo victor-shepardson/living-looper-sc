@@ -475,7 +475,8 @@ LivingLooper {
 		var platform = thisProcess.platform.name;
 		var shellQuote = { arg str;
 			(platform==\windows).if{
-				"\""++str++"\""
+				while{str.endsWith("\\")}{str = str.drop(-1)};
+				str.quote
 			}{
 				str.shellQuote
 			}
