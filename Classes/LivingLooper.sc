@@ -473,6 +473,13 @@ LivingLooper {
 			pipe.close;
 		};
 		var platform = thisProcess.platform.name;
+		var shellQuote = { arg str;
+			(platform==\windows).if{
+				"\""++str++"\""
+			}{
+				str.shellQuote
+			}
+		};
 		var arch = Platform.architecture;
 		var key = (platform ++ \_ ++arch).asSymbol;
 		var url = LivingLooper.binaries[key];
