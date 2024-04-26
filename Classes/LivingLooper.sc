@@ -497,8 +497,8 @@ LivingLooper {
 			shellQuote.(url), shellQuote.(filename)
 		))>0).if{Error("failed to download NN.ar").throw};
 		// unzip
-		(unixCmdPostStdOut.(
-			unzip_cmd.format(shellQuote.(filename), shellQuote.(tempDir)
+		(unixCmdPostStdOut.(unzip_cmd.format(
+			shellQuote.(filename), shellQuote.(tempDir)
 		))>0).if{Error("failed to unzip NN.ar").throw};
 		// move
 		(unixCmdPostStdOut.(mv_cmd.format(
@@ -508,7 +508,7 @@ LivingLooper {
 		// cleanup
 		unixCmdPostStdOut.(clean_cmd.format(
 			shellQuote.(filename)
-		); //ok if this fails
+		)); //ok if this fails
 
 		(platform==\osx).if{
 			/*runInTerminal(
