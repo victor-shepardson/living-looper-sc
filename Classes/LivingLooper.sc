@@ -1250,6 +1250,7 @@ LLStandalone {
 		.items_(LivingLooper.sources.keys.asList++["..."])
 		.background_(theme.color_highlight)
 		.stringColor_(theme.color_dark)
+		.font_(theme.font_button)
 		.toolTip_("choose a Living Looper model")
 		.action_{
 			(model_picker.item=="...").if{
@@ -1265,6 +1266,7 @@ LLStandalone {
 		force_dl = Button()
 		.states_([["dl", theme.color_alert, theme.color_fg]])
 		.maxWidth_(25)
+		.font_(theme.font_button)
 		.toolTip_("force download of current model (to get updates)")
 		.action_{
 			force_dl_ = true;
@@ -1276,6 +1278,7 @@ LLStandalone {
 		.items_([1,2]) // TODO: update this when the server boots
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
+		.font_(theme.font_button)
 		.toolTip_("choose a mono input channel")
 		.action_{ll.synth.set(\inbus, input_picker.value)}
 		;
@@ -1284,6 +1287,7 @@ LLStandalone {
 		.items_(["1-2", "2-3", "3-4"]) // TODO
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
+		.font_(theme.font_button)
 		.toolTip_("choose a range of output channels")
 		.action_{ll.synth.set(\outbus, output_picker.value)}
 		;
