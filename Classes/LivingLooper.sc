@@ -472,7 +472,7 @@ LivingLooper {
 			while({line.notNil}, {("\t"++line).postln; line=pipe.getLine});
 			pipe.close;
 		};
-		var platform = thisProcess.platformClass.asSymbol;
+		var platform = thisProcess.platform.name;
 		var arch = Platform.architecture;
 		var key = (platform ++ \_ ++arch).asSymbol;
 		var url = LivingLooper.binaries[key];
@@ -482,8 +482,8 @@ LivingLooper {
 		dl_cmd = "curl -vL % -o %";
 		// unzip_cmd = "unzip % -d %";
 		unzip_cmd = "tar -xvf % -C %";
-		mv_cmd = (platform==\WindowsPlatform).if{"move % %"}{"mv % %"};
-		clean_cmd = (platform==\WindowsPlatform).if{"del %"}{"rm %"};
+		mv_cmd = (platform==\windows).if{"move % %"}{"mv % %"};
+		clean_cmd = (platform==\windows).if{"del %"}{"rm %"};
 
 		// download
 		(unixCmdPostStdOut.(dl_cmd.format(
@@ -503,7 +503,7 @@ LivingLooper {
 			filename.shellQuote)
 		); //ok if this fails
 
-		(platform==\OSXPlatform).if{
+		(platform==\osx).if{
 			/*runInTerminal(
 				"xattr -d -r com.apple.quarantine"
 				+ shellQuote(Platform.userExtensionDir +/+ "nn.ar"))*/
