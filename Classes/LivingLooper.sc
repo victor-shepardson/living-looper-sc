@@ -1119,8 +1119,8 @@ LLStandalone {
 
 	*new { |...args|
 		// NOTE: best for apple silicon
-		"OMP_NUM_THREADS".setenv("1"); 
-		// "OMP_NUM_THREADS".setenv("4"); 
+		// "OMP_NUM_THREADS".setenv("1"); 
+		"OMP_NUM_THREADS".setenv("8"); 
 
 		^super.newCopyArgs(*args).init;
 	}
