@@ -366,6 +366,8 @@ LLMIDIMapper {
 			})
 		};
 
+		MIDIIn.connectAll;
+
 		MIDIdef(\LLMIDIMapperOn, { |val, num, chan, src|
 			var key = [\note, num, chan, src];
 			// noteOn can trigger MIDI mapping
