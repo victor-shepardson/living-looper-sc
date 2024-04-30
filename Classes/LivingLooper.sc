@@ -271,8 +271,11 @@ LLMIDIMapper {
 	var <toggle; //Button to enable MIDI mapping
 	var <save_button;
 	var <load_button; //Buttons to open file dialog
-	var <buttons; //Dictionary of name -> Button
-	var <map; //Dictionary of MIDI info -> name
+	var <ports_list; //ListView of MIDI devices
+
+	var <buttons; //IdentityDictionary of name -> Button
+	var <nameToKey; //IdentityDictionary of name -> MIDI info 
+	var <keyToName; //Dictionary of MIDI info -> name
 	var <>target; //current target of MIDI mapping
 
 	*new { |...args|
@@ -284,14 +287,16 @@ LLMIDIMapper {
 		// .string_("MIDI map:").stringColor_(theme.color_text);
 		// ^HLayout([label, align:\right], toggle, save_button, load_button)
 		^HLayout(toggle, save_button, load_button)
+		// ^HLayout(toggle, save_button, load_button, ports_list)
 	}
 
 	button { |name, parent, bounds|
-		^LLMIDIButton(this, name, parent, bounds);
+		^LLMIDIButton(this, name.asSymbol, parent, bounds);
 	}
 
 	get_text { |key, text|
-		var miditext = "%:% ch:% port:%".format(*key);
+		// var miditext = "%:% ch:% port:%".format(*key);
+		var miditext = "%:% ch:% % %".format(*key);
 		^ text ++ " (%)".format(miditext);
 	}
 
@@ -305,8 +310,8 @@ LLMIDIMapper {
 		};
 
 		// then set all in map
-		map.pairsDo{ |key, name|
-			var button = buttons.at(name);
+		nameToKey.pairsDo{ |name, key|
+			var button = buttons.at(name.asSymbol);
 			button.states_(button.initial_states.collect{ |state| 
 				[this.get_text(key, state[0])] ++ state[1..]
 			}, ephemeral:true)
@@ -316,21 +321,32 @@ LLMIDIMapper {
 	add { |key, target|
 		var button, miditext;
 		// map MIDI to name
-		map.add(key -> target);
-		map.postln;
+		nameToKey.put(target, key);
+		keyToName.put(key, target);
+		nameToKey.postln;
 		// modify button text
 		this.set_states;
 	}
 
 	match { |key|
-		var name = map.at(key);
-		^buttons.at(name);
+		var name = keyToName.at(key);
+		^buttons.at(name.asSymbol);
+	}
+
+	get_endpoint { |src|
+		^ MIDIClient.sources.detect{ arg e; e.uid == src}
+		? (device:nil, name:nil);
 	}
 
 	init {
+		var midiDir = PathName(PathName(
+			LivingLooper.filenameSymbol.asString
+		).parentPath).parentPath +/+ "midi";
+
 		theme = theme ? LLTheme.new;
-		buttons = Dictionary.new;
-		map = Dictionary.new;
+		buttons = IdentityDictionary.new;
+		nameToKey = IdentityDictionary.new;
+		keyToName = Dictionary.new;
 
 		// global MIDI map toggle -- visually changes all MIDIButtons
 		toggle = Button()
@@ -350,8 +366,8 @@ LLMIDIMapper {
 		.toolTip_("save the current MIDI map as a file")
 		.action_{
 			Dialog.savePanel({ |path|
-				map.writeArchive(path);
-			})
+				nameToKey.writeArchive(path);
+			}, path:midiDir)
 		};
 
 		load_button = Button()
@@ -361,15 +377,37 @@ LLMIDIMapper {
 		.action_{
 			Dialog.openPanel({ |path|
 				"loading...".postln;
-				map = Object.readArchive(path).postln;
+				keyToName = Dictionary.new;
+				nameToKey = Object.readArchive(path).postln;
+				nameToKey.pairsDo{ |name, key| keyToName.put(key, name)};
 				this.set_states;
-			})
+			}, path:midiDir)
 		};
+		// popup instead of load button
+		// for this to work, there would have to be a 'file-first' approach
+		// i.e. a "new..." menu item which would make you name the map,
+		// then autosave your edits
+		// this would be awkward if you want to copy one...
+		// also if you want an ad-hoc map without clutter...
+		// load_button = PopUpMenu()
+		// .items_(midiDir.entries)
+		// .background_(theme.color_bg)
+		// .stringColor_(theme.color_text)
+		// .font_(theme.font_button)
+		// .toolTip_("load a MIDI map)
+		// .action_{
+		// };
 
 		MIDIIn.connectAll;
 
+		// ports_list = ListView()
+		// .selectionMode_(\multi)
+		// .items_(MIDIClient.sources.collect(_.name))
+		// ;
+
 		MIDIdef(\LLMIDIMapperOn, { |val, num, chan, src|
-			var key = [\note, num, chan, src];
+			var endpoint = this.get_endpoint(src);
+			var key = [\note, num, chan+1, endpoint.device, endpoint.name];
 			// noteOn can trigger MIDI mapping
 			// noteOn sets button to state 1
 			{
@@ -388,7 +426,8 @@ LLMIDIMapper {
 		}, msgType:\noteOn).permanent_(true);
 
 		MIDIdef(\LLMIDIMapperOff, { |val, num, chan, src|
-			var key = [\note, num, chan, src];
+			var endpoint = this.get_endpoint(src);
+			var key = [\note, num, chan+1, endpoint.device, endpoint.name];
 			// noteOff sets button to state 0
 			{
 				var button = this.match(key);
@@ -399,7 +438,8 @@ LLMIDIMapper {
 		}, msgType:\noteOff).permanent_(true);
 
 		MIDIdef(\LLMIDIMapperControl, { |val, num, chan, src|
-			var key = [\control, num, chan, src];
+			var endpoint = this.get_endpoint(src);
+			var key = [\control, num, chan+1, endpoint.device, endpoint.name];
 			// controlChange can trigger MIDI mapping
 			// controlChange toggles button 
 			{
@@ -418,9 +458,10 @@ LLMIDIMapper {
 		}, msgType:\control).permanent_(true);
 
 		MIDIdef(\LLMIDIMapperProgram, { |num, chan, src|
-			var key = [\program, num, chan, src];
-			// controlChange can trigger MIDI mapping
-			// controlChange toggles button 
+			var endpoint = this.get_endpoint(src);
+			var key = [\program, num, chan+1, endpoint.device, endpoint.name];
+			// programChange can trigger MIDI mapping
+			// programChange toggles button 
 			{
 				(toggle.value==1).if{
 					// when mapping is toggled on, a MIDI handler associates 
@@ -881,19 +922,21 @@ LLGUI {
 
 		// loop buttons start / end recording
 		loopButtons = nLoops.collect{ |i| 
-			mapper.button(\loop++i.asSymbol).states_([
-				["record "++(i+1).asString, theme.color_text, theme.color_fg],
-				["play "++(i+1), theme.color_alert, theme.color_bg]])
+			var j = i+1;
+			mapper.button(\loop++j).states_([
+				["record "++j.asString, theme.color_text, theme.color_fg],
+				["play "++j, theme.color_alert, theme.color_bg]])
 				.font_(theme.font_button)
-				.toolTip_("start/end recording loop"+(i+1));
+				.toolTip_("start/end recording loop"+j);
 
 		};
 		// erase buttons 
 		eraseButtons = nLoops.collect{ |i|
-			mapper.button(\erase++i.asSymbol).states_([
-				["erase "++i.asString,theme.color_text,theme.color_dark]])
+			var j = i+1;
+			mapper.button(\erase++j).states_([
+				["erase "++j.asString,theme.color_text,theme.color_dark]])
 				.font_(theme.font_button)
-				.toolTip_("erase loop"+(i+1));
+				.toolTip_("erase loop"+j);
 		};
 
 		// TODO: possibly draw all loops into one userview so they can overlap?
@@ -1119,8 +1162,8 @@ LLStandalone {
 
 	*new { |...args|
 		// NOTE: best for apple silicon
-		// "OMP_NUM_THREADS".setenv("1"); 
-		"OMP_NUM_THREADS".setenv("8"); 
+		"OMP_NUM_THREADS".setenv("1"); 
+		// "OMP_NUM_THREADS".setenv("8");
 
 		^super.newCopyArgs(*args).init;
 	}
@@ -1278,7 +1321,7 @@ LLStandalone {
 
 		input_picker = PopUpMenu()
 		// .minWidth_(300)
-		.items_([1,2]) // TODO: update this when the server boots
+		.items_([1,2])
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.font_(theme.font_button)

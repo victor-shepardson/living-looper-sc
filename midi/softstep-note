@@ -1,0 +1,50 @@
+var o, p;
+o = [
+	IdentityDictionary.prNew,  Array.prNew(32),  Array.prNew(5),  "SSCOM",  
+	"Port 1",  Array.prNew(5),  Array.prNew(5),  Array.prNew(5),  
+	Array.prNew(5),  Array.prNew(5),  Array.prNew(5),  Array.prNew(5),  
+	Array.prNew(5)
+];
+p = [
+	// IdentityDictionary
+	0, [ array: o[1],  size: 9,  
+		proto: nil,  parent: nil,  
+		know: false ],  
+	// Array
+	1, [ nil,  nil,  nil,  nil,  
+		'erase3',  o[2],  nil,  nil,  
+		nil,  nil,  'loop3',  o[5],  
+		'erase4',  o[6],  nil,  nil,  
+		'loop1',  o[7],  'loop4',  o[8],  
+		'erase2',  o[9],  'erase1',  o[10],  
+		'auto',  o[11],  'loop2',  o[12],  
+		nil,  nil,  nil,  nil ],  
+	// Array
+	2, [ 'note',  67,  1,  o[3],  
+		o[4] ],  
+	// Array
+	5, [ 'note',  62,  1,  o[3],  
+		o[4] ],  
+	// Array
+	6, [ 'note',  68,  1,  o[3],  
+		o[4] ],  
+	// Array
+	7, [ 'note',  60,  1,  o[3],  
+		o[4] ],  
+	// Array
+	8, [ 'note',  63,  1,  o[3],  
+		o[4] ],  
+	// Array
+	9, [ 'note',  66,  1,  o[3],  
+		o[4] ],  
+	// Array
+	10, [ 'note',  65,  1,  o[3],  
+		o[4] ],  
+	// Array
+	11, [ 'note',  64,  1,  o[3],  
+		o[4] ],  
+	// Array
+	12, [ 'note',  61,  1,  o[3],  
+		o[4] ]
+];
+prUnarchive(o,p);
