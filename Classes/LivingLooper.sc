@@ -340,7 +340,7 @@ LLMIDIMapper {
 
 	init {
 		var midiDir = PathName(PathName(
-			LivingLooper.filenameSymbol.asString
+			LivingLooperCore.filenameSymbol.asString
 		).parentPath).parentPath +/+ "midi";
 
 		theme = theme ? LLTheme.new;
@@ -515,17 +515,18 @@ LLMIDIButton : Button {
 
 }
 
-LivingLooper {
+LivingLooperCore {
+	// this is the Living Looper pseudo-UGen and other core features (no GUI) 
 
 	*sources {
 		^ thisProcess.interpreter.executeFile(PathName(
-			LivingLooper.filenameSymbol.asString
+			LivingLooperCore.filenameSymbol.asString
 			).parentPath +/+ "sources.scd");
 	}
 
 	*binaries {
 		^ thisProcess.interpreter.executeFile(PathName(
-			LivingLooper.filenameSymbol.asString
+			LivingLooperCore.filenameSymbol.asString
 			).parentPath +/+ "binaries.scd");
 	}
 
@@ -553,7 +554,7 @@ LivingLooper {
 		};
 		var arch = Platform.architecture;
 		var key = (platform ++ \_ ++arch).asSymbol;
-		var url = LivingLooper.binaries[key];
+		var url = LivingLooperCore.binaries[key];
 		var tempDir = Platform.defaultTempDir;
 		var filename = tempDir +/+ PathName(url).fileName;
 		var dl_cmd, unzip_cmd, mv_cmd, cp_cmd, clean_cmd;
@@ -599,12 +600,12 @@ LivingLooper {
 	*load { |name, source, forceDownload=false| forkIfNeeded{
 		var filename;
 
-		var sources = LivingLooper.sources;
+		var sources = LivingLooperCore.sources;
 		var url = sources.at(source);
 		url.notNil.if{
 			// get model by name from remote source
 			var modelDir = PathName(PathName(
-				LivingLooper.filenameSymbol.asString
+				LivingLooperCore.filenameSymbol.asString
 				).parentPath).parentPath +/+ "models";
 			var cond = Condition.new;
 			// filename = modelDir.postln +/+ (name++".ts");
@@ -650,7 +651,7 @@ LivingLooper {
 		}
 	}}
 
-	*ar { |name, input, loop=0, thru=0, auto=0, blockSize=0|
+	*ar { |name, input, loop=0, thru=0, auto=0, blockSize=nil|
 		var out, zs; 
 		var method = NN(name, \forward_with_latents);
 		var out_zs = method.ar(
@@ -788,67 +789,12 @@ LLBars {
 	}
 }
 
-// // fixed colors
-// LLPendulum2 {
-// *draw {
-// 	var bounds = view.bounds.width@view.bounds.height;
-// 	var pt = 0@0;
-// 	// TODO: export should rectify latents,
-// 	// polarity of first latent is hardcoded here
-// 	// var mag = 0 - latents[0];
-// 	var mag = latents[0] * (l0_sign?1);
-// 	// var mag = latents.squared.sum.sqrt/3-2;
-// 	var ndrop = (latents.size - 1) % 4;
-// 	mag = (mag.exp+1).log.sqrt()/2;
-// 	Pen.color = Color(0,0,0,0.3);
-// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-// 	latents.drop(1).drop(0-ndrop).clump(2).do{ |item,i|
-// 		var new_pt;
-// 		Pen.color = Color(
-// 			(i*2pi/3).cos+1/2,
-// 			(i*2pi/4).cos+1/2,
-// 			(i*2pi/5).cos+1/2);
-// 		Pen.moveTo(pt+1/2*bounds);
-// 		new_pt = Point(item[0],item[1])/3/(i/3+1)*mag + pt;
-// 		new_pt = new_pt / (new_pt.abs+1);
-// 		Pen.lineTo(new_pt+1/2*bounds);
-// 		pt = new_pt;
-// 		Pen.width = bounds.x/10 * mag/(i/3+1);
-// 		Pen.stroke;
-// 	}
-// }}
-// // blocks
-// LLBlocks {
-// *draw {
-// 	var bounds = view.bounds.width@view.bounds.height;
-// 	var pt = 0@0;
-// 	// TODO: export should rectify latents,
-// 	// polarity of first latent is hardcoded here
-// 	// var mag = 0 - latents[0];
-// 	var mag = latents[0] * (l0_sign?1);
-// 	// var mag = latents.squared.sum.sqrt/3-2;
-// 	var ndrop = (latents.size - 1) % 4;
-// 	mag = (mag.exp+1).log.sqrt()/2;
-// 	Pen.color = Color(0,0,0,0.3);
-// 	Pen.fillRect(Rect(0,0,view.bounds.width,view.bounds.height));
-// 	latents.drop(1).drop(0-ndrop).clump(2).do{ |item,i|
-// 		var start, end, len;
-// 		Pen.color = Color(
-// 			(i*2pi/3).cos+1/2,
-// 			(i*2pi/4).cos+1/2,
-// 			(i*2pi/5).cos+1/2);
-// 		len = 1/(i+3);
-// 		start = Point(item[0],item[1])/3*mag;
-// 		end = start + (len@0);
-// 		start = start - (len@0);
-// 		Pen.moveTo(start+1/2*bounds);
-// 		Pen.lineTo(end+1/2*bounds);
-// 		Pen.width = bounds.x/10 * mag/(i/3+1);
-// 		Pen.stroke;
-// 	}
-// }}
 
-LLGUI {
+LivingLooperGUI {
+	// this wraps LivingLooperCore with the basic GUI 
+	// (visualization, core controls, MIDI mapper) 
+	// which might be integrated into other Supercollider
+	// SynthDefs / interfaces
 	var <name;
 	var <l0_sign;
 	var <theme;
@@ -872,10 +818,10 @@ LLGUI {
 
 	var <gui;
 
-	ar { |input, blockSize=0|
+	ar { |input, blockSize=nil|
 		var out, zs; 
 		var mx, tr;
-		# out, zs = LivingLooper.ar(
+		# out, zs = LivingLooperCore.ar(
 			name, input, 
 			loop:\loop.kr(0), thru:\thru.kr(0), auto:\auto.kr(0),
 			blockSize:blockSize);
@@ -883,13 +829,6 @@ LLGUI {
 
 		mx = Mix.new(zs.abs);
 		
-		// use zs as its own trigger
-		// nLatent.do{ |zi|
-		// 	// var trig = DelayN.ar(mx, 0.1, SampleDur.ir*zi);
-		// 	// SendReply.ar(trig, "/living_looper_monitor", zs, zi)
-		// 	SendReply.ar(mx, "/living_looper_monitor_"++this.id, zs, zi);
-		// 	mx = Delay1.ar(mx);
-		// };
 
 		// trigger on consecutive 0, integer
 		tr = Delay1.ar(mx eq: 0) * (mx>0) * (mx.frac eq: 0);
@@ -1003,7 +942,7 @@ LLGUI {
 			(autoButton.value > 0).if{autoButton.valueAction_(0)};
 
 			(b.value==1).if{
-				debug.if{["LLGUI: loop", i+1].postln};
+				debug.if{["LivingLooperGUI: loop", i+1].postln};
 				// start recording
 				synth!?(_.set(\loop, i+1));
 				// any other recording stops internally -- 
@@ -1011,7 +950,7 @@ LLGUI {
 				loopButtons.do{ |b| b.value_(0)};
 				b.value_(1);
 			}{
-				debug.if{["LLGUI: loop end"].postln};
+				debug.if{["LivingLooperGUI: loop end"].postln};
 				// end recording
 				synth!?(_.set(\loop, 0));
 			}
@@ -1019,7 +958,7 @@ LLGUI {
 
 		eraseButtons.do{ |b,i| b.action_{ 
 			// erase loop
-			debug.if{["LLGUI: erase", i+1].postln};
+			debug.if{["LivingLooperGUI: erase", i+1].postln};
 			synth!?(_.set(\loop, -1-i));
 			// any recordings stop
 			loopButtons.do{ |b| b.value_(0)};
@@ -1028,20 +967,20 @@ LLGUI {
 
 		autoButton.action_{
 			(autoButton.value==1).if{
-				debug.if{["LLGUI: auto mode", 2].postln};
+				debug.if{["LivingLooperGUI: auto mode", 2].postln};
 				synth!?(_.set(\auto, 2))
 			}{
-				debug.if{["LLGUI: auto off"].postln};
+				debug.if{["LivingLooperGUI: auto off"].postln};
 				synth!?(_.set(\auto, 0))
 			};
 		};
 
 		thruButton.action_{
 			(thruButton.value==1).if{
-				debug.if{["LLGUI: thru on"].postln};
+				debug.if{["LivingLooperGUI: thru on"].postln};
 				synth!?(_.set(\thru, 1))
 			}{
-				debug.if{["LLGUI: thru off"].postln};
+				debug.if{["LivingLooperGUI: thru off"].postln};
 				synth!?(_.set(\thru, 0))
 			}
 		};
@@ -1079,33 +1018,29 @@ LLGUI {
 		(idx>0).if{
 			this.eraseButtons[idx-1].action.defer;
 		}{
-			("ERROR: LLGUI: can't erase loop" + idx).postln;
+			("ERROR: LivingLooperGUI: can't erase loop" + idx).postln;
 		}
 	}
 
 	record { |idx| 
 		(idx>0).if{
 			{
+				this.loopButtons[idx-1].valueAction_(1);
 				this.autoButton.valueAction_(0);
-				this.loopButtons[idx-1].value_(0);
-				this.loopButtons[idx-1].action.();
-				this.loopButtons[idx-1].value_(1);
 			}.defer;
 		}{
-			("ERROR: LLGUI: can't record loop" + idx).postln;
+			("ERROR: LivingLooperGUI: can't record loop" + idx).postln;
 		}
 	}
 
 	end { |idx|
 		(idx>0).if{
 			{
+				this.loopButtons[idx-1].valueAction_(0);
 				this.autoButton.valueAction_(0);
-				this.loopButtons[idx-1].value_(1);
-				this.loopButtons[idx-1].action.();
-				this.loopButtons[idx-1].value_(0);
 			}.defer;
 		}{
-			("ERROR: LLGUI: can't end loop" + idx).postln;
+			("ERROR: LivingLooperGUI: can't end loop" + idx).postln;
 		}
 	}
 
@@ -1119,15 +1054,15 @@ LLGUI {
 	//////
 
 	map { |synth|
-		// synth: synth containing a LivingLooper UGen
+		// synth: synth containing a LivingLooperCore UGen
 		this.synth = synth;
-		this.make_window.layout_(this.gui);
+		this.make_window.layout_(VLayout(this.gui));
 		^ this
 	}
 
 	make_window {
 		// GUI elements
-		window = Window.new(bounds:Rect(200,250,1200,300))
+		window = Window.new(bounds:Rect(200,250,1200,400))
 			.background_(theme.color_bg)
 			.onClose_{this.cleanup}
 			.front;
@@ -1139,10 +1074,9 @@ LLGUI {
 	}
 }
 
-// LLGUI plus a server panel and default synth
-// TODO: channel routing options
-// TODO: global MIDI port, channel select?
-LLStandalone {
+LivingLooper {
+// This is the standalong Living Looper object,
+// including server control, model loading, input and output routing
 	var <theme;
 	var <window;
 	var server_control;
@@ -1195,7 +1129,7 @@ LLStandalone {
 			this.make_meter;
 
 
-			ll = LLGUI(\standalone);
+			ll = LivingLooperGUI(\standalone);
 			// copy previous MIDI mapper state over
 			midi_state.notNil.if{ 
 				ll.mapper.map.putAll(midi_state); 
@@ -1205,7 +1139,7 @@ LLStandalone {
 			ll.synth = SynthDef(\ll++ll.id, {
 				var in = SoundIn.ar(\inbus.kr(input_picker.value))
 					* \input_gain.kr(input_gain_knob.value);
-				var out = ll.ar(in, blockSize:2048);
+				var out = ll.ar(in, blockSize:nil);
 				var stereo = \dry_gain.kr(dry_gain_knob.value)/2.sqrt * in 
 					+ Splay.ar(out);
 				stereo = Limiter.ar(
@@ -1230,7 +1164,7 @@ LLStandalone {
 	}
 
 	install {
-		LivingLooper.detectNN.not.if{
+		LivingLooperCore.detectNN.not.if{
 			// dialog to confirm installing NN
 			var cond = Condition.new;
 			"WARNING: NN.ar not found".postln;
@@ -1248,7 +1182,7 @@ LLStandalone {
 					.toolTip_("install NN.ar and restart SuperCollider")
 					.action_{
 						"attempting to install...".postln;
-						LivingLooper.installNN;
+						LivingLooperCore.installNN;
 						cond.test=true; cond.signal
 					},
 					Button()
@@ -1275,7 +1209,7 @@ LLStandalone {
 		var r = Routine{
 			this.install;
 			"-----LOAD-----".postln;
-			LivingLooper.load(
+			LivingLooperCore.load(
 				\standalone, model_picker.item, 
 				forceDownload: force_dl_);
 			force_dl = false;
@@ -1293,7 +1227,7 @@ LLStandalone {
 		model_picker = PopUpMenu()
 		// .allowsReselection_(true)
 		.minWidth_(270)
-		.items_(LivingLooper.sources.keys.asList++["..."])
+		.items_(LivingLooperCore.sources.keys.asList++["..."])
 		.background_(theme.color_highlight)
 		.stringColor_(theme.color_dark)
 		.font_(theme.font_button)

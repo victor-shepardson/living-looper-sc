@@ -1,0 +1,80 @@
+class:: LivingLooperCore
+summary:: A squishy multichannel quasi-looper based on neural synthesis.
+related:: Classes/LivingLooper, Classes/LivingLooperGUI, Classes/NN
+categories:: UGens
+
+description::
+Core Living Looper UGen. Use this class to integrate the Living Looper in a "headless" setup without graphics in your own Supercollider projects. If you want to use the graphical LivingLooper with your own Synths, see Link::Classes/LivingLooperGUI::. If you want to use the standalone Living Looper, see Link::Classes/LivingLooper::.
+
+note::
+Depends on the NN.ar server plugin (https://github.com/elgiano/nn.ar)
+::
+
+classmethods::
+
+method::ar
+Create a LivingLooperCore pseudo-UGen.
+
+argument::name
+Symbol, a handle for the underlying nn~ model (passed to Link::Classes/NN#*new::)
+
+argument::input
+Audio signal, main input to the Living Looper
+
+argument::loop
+Control signal indexing the active loop; passed to the nn~ model as an attribute. On change, a positive value starts recording the indexed loop (and stops any other recordings). A negative value erases the indexed loop (and stops any other recordings). Loops are indexed from 1, so setting loop to 0 just stops any ongoing recordings.
+
+argument::thru
+Control signal determining sound while a loop is recording; passed to the nn~ model as an attribute. If 0, loops will be silent when recording. If nonzero, the processed input will play through the loop when recording.
+
+argument::auto
+Control signal enabling auto triggering mode; passed to the nn~ model as an attribute. If nonzero, the Living Looper will start and stop recording loops automatically based on the input signal. 
+
+argument::blockSize
+passed to Link::Classes/NNModelMethod#*ar::
+
+method::load
+prepare a Living Looper model by loading it in NN.ar, and downloading the model if needed.
+argument::name
+Symbol, a handle for the underlying nn~ model (passed to Link::Classes/NN#*new::)
+argument::source
+Symbol or String, either the name of a Living Looper torchscript model or path to one on disk. See Link::Classes/LivingLooperCore#*sources:: for available models.
+argument::forceDownload
+if true, re-download models even if they already exist (to get updates)
+
+method::sources
+Dictionary mapping model names to download URLs, used by Link::Classes/LivingLooperCore#*load:: and the model picker in the standalone Link::Classes/LivingLooper::. This can be edited as sources.scd in the LivingLooper install directory.
+
+
+examples::
+
+code::
+(
+s.options.numOutputBusChannels = 6; // stereo out + quad out for recording
+
+s.options.sampleRate = 48000; // best sound if the sample rate matches the model
+s.options.blockSize = 64; 
+s.options.hardwareBufferSize = 64; // may help performance to increase this
+
+// this environment variable can affect pytorch performance
+"OMP_NUM_THREADS".setenv("1"); // (best setting for apple silicon)
+
+s.waitForBoot{
+	~bus = Bus.audio(numChannels:6);
+
+	// load the nn~ model:
+	// choose the default 4-loop guitar model
+	LivingLooperCore.load(\test, source:\vrs_guitar_v1);
+
+	~synth = {
+		var loops, mix;
+		var in = SoundIn.ar(0);
+		loops = LivingLooperCore.ar(\test, in, blockSize:2048);
+		mix = Splay.ar(loops);
+		Limiter.ar(mix++loops, 0.2);
+	}.play(outbus:~bus);
+})
+
+s.record(bus:0, numChannels:7); //stereo mix, 4 loops, input
+
+::

@@ -1,0 +1,102 @@
+class:: LivingLooperGUI
+summary:: A squishy multichannel quasi-looper based on neural synthesis.
+related:: Classes/LivingLooperCore, Classes/LivingLooper, Classes/NN
+categories:: UGens
+
+description::
+Wraps the LivingLooper UGen in a visualization and button interface. Use this class to integrate the graphical Living Looper into your own Supercollider projects. If you want to to integrate the Living Looper in a "headless" setup without graphics, see Link::Classes/LivingLooperCore::. If you want to use the standalone Living Looper, see Link::Classes/LivingLooper::.
+
+note::
+Depends on NN.ar. The GUI will attempt to install to for you, but better to do so manually (https://github.com/elgiano/nn.ar)
+::
+
+classmethods::
+
+method::new
+
+argument::filename
+String, path to torchscript file containing a LivingLooper.
+
+instancemethods::
+
+method::ar
+Create a LivingLooper UGen from an LLGUI instance.
+argument::input
+Audio signal, main input to the Living Looper
+argument::blockSize
+passed to Link::Classes/NNModelMethod#*ar::
+
+method::erase
+erase a loop
+argument::idx
+Integer, loop index (starts from 1)
+
+method::record
+start recording a loop
+argument::idx
+Integer, loop index (starts from 1)
+
+method::end
+finish recording a loop
+argument::idx
+Integer, loop index (starts from 1)
+
+method::auto
+toggle auto mode
+
+method::thru
+toggle thru mode
+
+method::map
+associate a Synth with this LivingLooperGUI.
+argument::synth
+a Synth which contains a LivingLooperCore UGen and has \loop, \auto and \thru Controls. 
+
+examples::
+
+code::
+(
+s.options.numOutputBusChannels = 6; // stereo out + quad out for recording
+
+s.options.sampleRate = 48000; // best sound if the sample rate matches the model
+s.options.blockSize = 64; 
+s.options.hardwareBufferSize = 64; // may help performance to increase this
+
+// this environment variable affects pytorch performance
+"OMP_NUM_THREADS".setenv("1"); // (best setting for apple silicon)
+
+s.waitForBoot{
+	//load the nn~ model:
+	// choose the default 4-loop guitar model
+	LivingLooperCore.load(\test, source:\guitar_vrs_v1, forceDownload:true);
+
+	// make a LivingLooperGUI
+	~ll = LivingLooperGUI(\test);
+
+	// use .ar on the LivingLooperGUI *instance* to make a LivingLooperCore Ugen
+	~synth = {
+		var loops, mix;
+		var in = SoundIn.ar(0);
+		loops = ~ll.ar(in);
+		mix = Splay.ar(loops);
+		Limiter.ar(mix++loops, 0.2);
+	}.play(outbus:0); //and make a synth
+
+	// associate the LivingLooperGUI with the enclosing synth
+	~ll.map(~synth);
+
+	// print stuff when buttons are pressed
+	~ll.debug_(true);
+})
+
+~ll.auto; //toggle auto mode
+~ll.thru; //toggle thru mode
+~ll.record(1); //record loop 1
+~ll.end(1); //end recording loop 1
+~ll.erase(1); //erase loop 1
+
+~ll.record(2); //record loop 2
+~ll.erase(2); //erase loop 2
+
+s.record(bus:0, numChannels:7); //stereo mix, 4 loops, input
+::

@@ -1,0 +1,10 @@
+(
+  name: "LivingLooper",
+  summary: "A neural synthesis quasi-looper",
+  version: "1.0.0",
+  schelp: "LivingLooper",
+  ext_dependency: ["NN.ar"],
+  license: "GPLv3",
+  copyright: "Victor Shepardson. 2024",
+  url: "https://iil.is/research/livinglooper"
+)
