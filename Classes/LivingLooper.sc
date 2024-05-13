@@ -515,6 +515,28 @@ LLMIDIButton : Button {
 
 }
 
+LLUtil {
+	*unixCmd { |str, maxLineLength=1024|
+		//synchronous unixCmd which streams to stdout
+		var pipe, line;
+		("> "++str).postln;
+		pipe = Pipe.new(str, "r");
+		line = pipe.getLine(maxLineLength);
+		while({line.notNil}, {("\t"++line).postln; line=pipe.getLine});
+		^ pipe.close
+	}
+
+	*shellQuote { |str|
+		// shellQuote which works on windows
+		(thisProcess.platform.name==\windows).if{
+			while{str.endsWith("\\")}{str = str.drop(-1)};
+			^ str.quote
+		}{
+			^ str.shellQuote
+		}
+	}
+}
+
 LivingLooperCore {
 	// this is the Living Looper pseudo-UGen and other core features (no GUI) 
 
@@ -534,24 +556,25 @@ LivingLooperCore {
 		^ \NNModel.asClass.notNil;
 	}
 
+
 	*installNN{ //forkIfNeeded{
-		var unixCmdPostStdOut = { arg str, maxLineLength=1024;
-			var pipe, line;
-			("> "++str).postln;
-			pipe = Pipe.new(str, "r");
-			line = pipe.getLine(maxLineLength);
-			while({line.notNil}, {("\t"++line).postln; line=pipe.getLine});
-			pipe.close;
-		};
+		// var unixCmdPostStdOut = { arg str, maxLineLength=1024;
+		// 	var pipe, line;
+		// 	("> "++str).postln;
+		// 	pipe = Pipe.new(str, "r");
+		// 	line = pipe.getLine(maxLineLength);
+		// 	while({line.notNil}, {("\t"++line).postln; line=pipe.getLine});
+		// 	pipe.close;
+		// };
 		var platform = thisProcess.platform.name;
-		var shellQuote = { arg str;
-			(platform==\windows).if{
-				while{str.endsWith("\\")}{str = str.drop(-1)};
-				str.quote
-			}{
-				str.shellQuote
-			}
-		};
+		// var shellQuote = { arg str;
+		// 	(platform==\windows).if{
+		// 		while{str.endsWith("\\")}{str = str.drop(-1)};
+		// 		str.quote
+		// 	}{
+		// 		str.shellQuote
+		// 	}
+		// };
 		var arch = Platform.architecture;
 		var key = (platform ++ \_ ++arch).asSymbol;
 		var url = LivingLooperCore.binaries[key];
@@ -565,32 +588,32 @@ LivingLooperCore {
 		clean_cmd = (platform==\windows).if{"del %"}{"rm %"};
 
 		// download
-		(unixCmdPostStdOut.(dl_cmd.format(
-			shellQuote.(url), shellQuote.(filename)
+		(LLUtil.unixCmd(dl_cmd.format(
+			LLUtil.shellQuote(url), LLUtil.shellQuote(filename)
 		))>0).if{Error("failed to download NN.ar").throw};
 		// unzip
-		(unixCmdPostStdOut.(unzip_cmd.format(
-			shellQuote.(filename), shellQuote.(tempDir)
+		(LLUtil.unixCmd(unzip_cmd.format(
+			LLUtil.shellQuote(filename), LLUtil.shellQuote(tempDir)
 		))>0).if{Error("failed to unzip NN.ar").throw};
 		// move
-		(unixCmdPostStdOut.(mv_cmd.format(
-			shellQuote.(tempDir +/+ "nn.ar"),
-			shellQuote.(Platform.userExtensionDir +/+ "nn.ar")
+		(LLUtil.unixCmd(mv_cmd.format(
+			LLUtil.shellQuote(tempDir +/+ "nn.ar"),
+			LLUtil.shellQuote(Platform.userExtensionDir +/+ "nn.ar")
 		))>0).if{Error("failed to move NN.ar to Extensions").throw};
 		// cleanup
-		unixCmdPostStdOut.(clean_cmd.format(
-			shellQuote.(filename)
+		LLUtil.unixCmd(clean_cmd.format(
+			LLUtil.shellQuote(filename)
 		)); //ok if this fails
 
 		(platform==\windows).if{
-			(unixCmdPostStdOut.(cp_cmd.format(
-				shellQuote.(Platform.userExtensionDir +/+ "nn.ar" +/+ "ignore" +/+ "*"),
-				shellQuote.(Platform.resourceDir)
+			(LLUtil.unixCmd(cp_cmd.format(
+				LLUtil.shellQuote(Platform.userExtensionDir +/+ "nn.ar" +/+ "ignore" +/+ "*"),
+				LLUtil.shellQuote(Platform.resourceDir)
 			))>0).if{Error("failed to move DLLs to resource dir").throw};
 		};
 
 		(platform==\osx).if{
-			unixCmdPostStdOut.(
+			LLUtil.unixCmd(
 				"xattr -d -r com.apple.quarantine"
 				+ (Platform.userExtensionDir +/+ "nn.ar").shellQuote)
 		};
@@ -607,27 +630,35 @@ LivingLooperCore {
 			var modelDir = PathName(PathName(
 				LivingLooperCore.filenameSymbol.asString
 				).parentPath).parentPath +/+ "models";
-			var cond = Condition.new;
+			// var cond = Condition.new;
 			// filename = modelDir.postln +/+ (name++".ts");
 			filename = modelDir +/+ PathName(url).fileName;
 			(forceDownload || File.exists(filename).not).if{
-				"downloading % from % to %".format(source, url, filename).postln;
+				var dl_cmd = "curl -L % -o %";
+				// download
+				// AppClock.sched(0,{
+				"downloading...".postln;
+				(LLUtil.unixCmd(dl_cmd.format(
+					LLUtil.shellQuote(url), LLUtil.shellQuote(filename)
+				))>0).if{Error("failed to download model").throw};
+				"done".postln;
+				// "downloading % from % to %".format(source, url, filename).postln;
 				// ["======THREAD======", thisThread, thisThread.clock].postln;
-				AppClock.sched(0,{
-				// {
-					// ["======THREAD======", thisThread, thisThread.clock].postln;
-					Download(
-						url,
-						filename,
-						finishedFunc: {cond.test=true; cond.signal},
-						errorFunc: {
-							Error("download '%' failed".format(url)).throw},
-						progressFunc: { |bt, br|
-							"%: % of % bytes".format(source, br, bt).postln; }
-					);
-					// "downloading complete".postln;
-				});
-				cond.wait;
+				// AppClock.sched(0,{
+				// // {
+				// 	// ["======THREAD======", thisThread, thisThread.clock].postln;
+				// 	Download(
+				// 		url,
+				// 		filename,
+				// 		finishedFunc: {cond.test=true; cond.signal},
+				// 		errorFunc: {
+				// 			Error("download '%' failed".format(url)).throw},
+				// 		progressFunc: { |bt, br|
+				// 			"%: % of % bytes".format(source, br, bt).postln; }
+				// 	);
+				// 	// "downloading complete".postln;
+				// });
+				// cond.wait;
 				// }
 			}
 		}{
@@ -1281,7 +1312,7 @@ LivingLooper {
 			.stringColor_(theme.color_highlight)
 			.font_(Font("Helvetica", 60)),
 			StaticText()
-			.string_("v1.0.0b")
+			.string_("v1.1.1")
 			.stringColor_(theme.color_highlight)
 			.font_(Font("Helvetica", 32)),
 		).spacing_(0);
