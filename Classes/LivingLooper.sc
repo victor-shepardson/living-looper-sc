@@ -1132,7 +1132,7 @@ LivingLooper {
 			ll = LivingLooperGUI(\standalone);
 			// copy previous MIDI mapper state over
 			midi_state.notNil.if{ 
-				ll.mapper.map.putAll(midi_state); 
+				ll.mapper.nameToKey.putAll(midi_state); 
 				ll.mapper.set_states;
 			};
 			// create Synth on the server
@@ -1158,7 +1158,7 @@ LivingLooper {
 
 	stop_synth {
 		ll.notNil.if{
-			midi_state = ll.mapper.map;
+			midi_state = ll.mapper.nameToKey;
 			ll.destroy;
 		};
 	}
