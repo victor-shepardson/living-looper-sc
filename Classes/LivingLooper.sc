@@ -1268,9 +1268,9 @@ LivingLooper {
 		.action_{
 			(model_picker.item=="...").if{
 				Dialog.openPanel({ |path|
-					model_picker.items = [path] ++ model_picker.items;
-					model_picker.valueAction_(0);
+					this.load(path)
 				})
+				// Dialog.openPanel(this.load)
 			}{
 				r.reset; r.play(AppClock);
 			}
@@ -1380,6 +1380,21 @@ LivingLooper {
 	inputGain { |gain| input_gain_knob.valueAction_(gain) }
 	dryGain { |gain| dry_gain_knob.valueAction_(gain) }
 	outputGain { |gain| output_gain_knob.valueAction_(gain) }
+	load { |path| 
+		// check if path already in picker
+		var idx = model_picker.items.indexOfEqual(path);
+		idx.isNil.if{
+			// if file doesn't exist, abort
+			File.exists(path).not.if{ 
+				"file does not exist".postln;
+				^nil 
+			};
+			// otherwise add the path to the menu
+			model_picker.items = [path] ++ model_picker.items;
+			idx = 0;
+		};
+		model_picker.valueAction_(idx);
+	}
 
 	// pass-through to LivingLooperGUI
 	erase { |idx| ll.erase(idx) }
