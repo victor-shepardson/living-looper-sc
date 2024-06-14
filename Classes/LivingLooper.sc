@@ -558,23 +558,7 @@ LivingLooperCore {
 
 
 	*installNN{ //forkIfNeeded{
-		// var unixCmdPostStdOut = { arg str, maxLineLength=1024;
-		// 	var pipe, line;
-		// 	("> "++str).postln;
-		// 	pipe = Pipe.new(str, "r");
-		// 	line = pipe.getLine(maxLineLength);
-		// 	while({line.notNil}, {("\t"++line).postln; line=pipe.getLine});
-		// 	pipe.close;
-		// };
 		var platform = thisProcess.platform.name;
-		// var shellQuote = { arg str;
-		// 	(platform==\windows).if{
-		// 		while{str.endsWith("\\")}{str = str.drop(-1)};
-		// 		str.quote
-		// 	}{
-		// 		str.shellQuote
-		// 	}
-		// };
 		var arch = Platform.architecture;
 		var key = (platform ++ \_ ++arch).asSymbol;
 		var url = LivingLooperCore.binaries[key];
@@ -1226,6 +1210,24 @@ LivingLooper {
 					},
 			)));
 			cond.wait;
+			cond.test=false;
+			Window("install NN.ar")
+			.setInnerExtent(500,100)
+			.front
+			.background_(theme.color_bg)
+			.layout_(VLayout(
+				StaticText()
+				.string_("that appears to have worked. The sclang interpreter will now restart, and then you can run LivingLooper.new again")
+				.stringColor_(theme.color_highlight),
+				HLayout(
+					Button()
+					.states_([["ok", theme.color_text, theme.color_fg]])
+					.toolTip_("restart sclang interpreter")
+					.action_{
+						cond.test=true; cond.signal
+					}
+			)));
+			cond.wait;
 			"restarting interpreter...".postln;
 			thisProcess.recompile;
 			cond.test=false; cond.wait;
@@ -1371,6 +1373,18 @@ LivingLooper {
 			ll.notNil.if{ll.cleanup};
 		}
 		.front;
-
 	}
+
+	// programmatic control from sclang
+
+	inputGain { |gain| input_gain_knob.valueAction_(gain) }
+	dryGain { |gain| dry_gain_knob.valueAction_(gain) }
+	outputGain { |gain| output_gain_knob.valueAction_(gain) }
+
+	// pass-through to LivingLooperGUI
+	erase { |idx| ll.erase(idx) }
+	record { |idx| ll.record(idx) }
+	end { |idx| ll.end(idx)	}
+	auto { ll.auto }
+	thru { ll.thru } 
 }

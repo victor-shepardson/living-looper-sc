@@ -19,9 +19,48 @@ method::new
 
 Create a new LivingLooper instance in a window.
 
+instancemethods::
+
+method::erase
+erase a loop
+argument::idx
+Integer, loop index (starts from 1)
+
+method::record
+start recording a loop
+argument::idx
+Integer, loop index (starts from 1)
+
+method::end
+finish recording a loop
+argument::idx
+Integer, loop index (starts from 1)
+
+method::auto
+toggle auto mode
+
+method::thru
+toggle thru mode
+
+method::inputGain
+set input gain
+argument::gain
+linear gain (0-1)
+
+method::dryGain
+set gain of dry input to output
+argument::gain
+linear gain (0-1)
+
+method::outputGain
+set output gain (multiplicative with dryGain)
+argument::gain
+linear gain (0-1)
+
+
 examples::
 
-This version is controlled entirely by GUI. To create an instance in a new window, simply run:
+This version can be controlled entirely by GUI. To create an instance in a new window, simply run:
 
 code::
 LivingLooper.new
