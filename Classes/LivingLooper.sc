@@ -1165,6 +1165,9 @@ LivingLooper {
 			// increase window size
 			window.setInnerExtent(hsize, 560);
 
+			model_picker.allowsReselection_(false);
+
+
 		}
 	}
 
@@ -1173,6 +1176,8 @@ LivingLooper {
 			midi_state = ll.mapper.nameToKey;
 			ll.destroy;
 		};
+		model_picker.allowsReselection_(true);
+
 	}
 
 	install {
@@ -1293,7 +1298,7 @@ LivingLooper {
 		);
 
 		model_picker = PopUpMenu()
-		// .allowsReselection_(true)
+		.allowsReselection_(true)
 		.minWidth_(270)
 		.items_(LivingLooperCore.sources.keys.asList++["..."])
 		.background_(theme.color_highlight)
