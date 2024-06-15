@@ -19,6 +19,11 @@ method::new
 
 Create a new LivingLooper instance in a window.
 
+argument::target
+target when making the Synth (defaults to Server.default)
+argument::addAction
+addAction when making the Synth (defaults to addToHead)
+
 instancemethods::
 
 method::erase
@@ -56,6 +61,15 @@ method::outputGain
 set output gain (multiplicative with dryGain)
 argument::gain
 linear gain (0-1)
+
+method::inBus
+set the (mono) input bus index, overriding the graphical picker
+
+method::outBus
+set the (stereo) output bus index, overriding the graphical picker
+
+method::getLoopBus
+return an audio Bus containing individual loop outputs. it may change when the model changes.
 
 
 examples::

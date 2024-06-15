@@ -118,6 +118,7 @@ LLMeter : ServerMeterView {
 LLServerControl {
 	var <>server;
 	var <on_boot;
+	var <on_device_change;
 	var <theme;
 	var <boot_button, <rate_box, <hblock_box, <cblock_box;
 	var <inchan_box, <outchan_box, <indevice_drop, <outdevice_drop;
@@ -142,7 +143,7 @@ LLServerControl {
 			["start audio",theme.color_green,theme.color_fg],
 			["starting...",theme.color_yellow,theme.color_bg],
 			["quit audio",theme.color_alert,theme.color_bg]])
-		.value_(server.serverRunning.asInteger)
+		.value_(server.serverRunning.if{2}{0})
 		.toolTip_("boot SuperCollider server")
 		.font_(theme.font_button)
 		.action_{
@@ -180,7 +181,7 @@ LLServerControl {
 		;
 
 		inchan_box = NumberBox()
-		.value_(8)
+		.value_(server.options.numInputBusChannels)
 		.decimals_(0)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
@@ -191,7 +192,7 @@ LLServerControl {
 		.toolTip_("set max number of input channels when opening audio device");
 
 		outchan_box = NumberBox()
-		.value_(8)
+		.value_(server.options.numOutputBusChannels)
 		.decimals_(0)
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
@@ -230,6 +231,7 @@ LLServerControl {
 		.font_(theme.font_button)
 		.maxWidth_(dropwidth)
 		.toolTip_("set input device (requires audio restart)")
+		.action_{ on_device_change.value }
 		;
 
 		outdevice_drop = PopUpMenu()
@@ -239,6 +241,7 @@ LLServerControl {
 		.font_(theme.font_button)
 		.maxWidth_(dropwidth)
 		.toolTip_("set output device (requires audio restart)")
+		.action_{ on_device_change.value }
 		;
 
 		^this
@@ -843,7 +846,6 @@ LivingLooperGUI {
 		// zs are packed in audio signals;
 
 		mx = Mix.new(zs.abs);
-		
 
 		// trigger on consecutive 0, integer
 		tr = Delay1.ar(mx eq: 0) * (mx>0) * (mx.frac eq: 0);
@@ -1092,6 +1094,8 @@ LivingLooperGUI {
 LivingLooper {
 // This is the standalong Living Looper object,
 // including server control, model loading, input and output routing
+	var target;
+	var addAction;
 	var <theme;
 	var <window;
 	var server_control;
@@ -1104,6 +1108,9 @@ LivingLooper {
 
 	var title;
 	var <ll;
+
+	var in_bus_override;
+	var out_bus_override;
 
 	var midi_state;
 
@@ -1118,6 +1125,7 @@ LivingLooper {
 	}
 
 	make_meter {
+		meter_view.removeAll;
 		meter_view.layout_(VLayout(LLMeter(
 			server_control.server, 
 			numIns:server_control.inchan_box.value.asInteger,
@@ -1128,21 +1136,10 @@ LivingLooper {
 
 	make_synth {
 		server_control.server.serverRunning.if{
-			var n_out = 2; // TODO control this
 
-			input_picker.items_(
-				server_control.server.options.numInputBusChannels
-				.collect{ |i| i+1 });
+			this.set_io_options;
 
-			output_picker.items_(
-				(server_control.server.options.numOutputBusChannels+1-n_out)
-				.collect{ |i| "%-%".format(i+1, i+n_out) });
-
-			// meter.notNil.if{meter.remove};
-			// meter = make_meter;
-			meter_view.removeAll;
 			this.make_meter;
-
 
 			ll = LivingLooperGUI(\standalone);
 			// copy previous MIDI mapper state over
@@ -1152,16 +1149,16 @@ LivingLooper {
 			};
 			// create Synth on the server
 			ll.synth = SynthDef(\ll++ll.id, {
-				var in = SoundIn.ar(\inbus.kr(input_picker.value))
+				var in = In.ar(\inbus.kr(this.get_input_bus))
 					* \input_gain.kr(input_gain_knob.value);
 				var out = ll.ar(in, blockSize:nil);
 				var stereo = \dry_gain.kr(dry_gain_knob.value)/2.sqrt * in 
 					+ Splay.ar(out);
 				stereo = Limiter.ar(
 					stereo * 2 * \output_gain.kr(output_gain_knob.value));
-				Out.ar(\outbus.kr(output_picker.value), stereo);
+				Out.ar(\outbus.kr(this.get_output_bus), stereo);
 				Out.ar(ll.loops_bus, out);
-			}).play;
+			}).play(target?Server.default, addAction:addAction?\addToHead);
 
 			// add GUI to window
 			window.layout.add(ll.gui, stretch:1);
@@ -1234,6 +1231,41 @@ LivingLooper {
 		};
 	}
 
+	set_io_options {
+		var n_out = 2; // TODO control this?
+
+		var inval = input_picker.value ? 0;
+		var outval = output_picker.value ? 0;
+
+		input_picker.items_(
+			server_control.server.options.numInputBusChannels
+			.collect{ |i| i+1 });
+		inval.notNil.if{(inval < input_picker.items.size).if{
+			input_picker.value_(inval)}};
+
+		output_picker.items_(
+			(server_control.server.options.numOutputBusChannels+1-n_out)
+			.collect{ |i| "%-%".format(i+1, i+n_out) });
+		outval.notNil.if{(outval < output_picker.items.size).if{
+			output_picker.value_(outval)}};
+	}
+
+	get_input_bus {
+		// return input bus index
+		^ in_bus_override ? (input_picker.value 
+			+ server_control.server.options.numOutputBusChannels);
+	}
+	set_input_bus {
+		ll.notNil.if{ll.synth.set(\inbus, this.get_input_bus)}
+	}
+
+	get_output_bus {
+		^ out_bus_override ? output_picker.value
+	}
+	set_output_bus {
+		ll.notNil.if{ll.synth.set(\outbus, this.get_output_bus)}
+	}
+
 	init {
 		// put these startup steps in a Routine, 
 		// so that when it is played on the AppClock,
@@ -1255,7 +1287,10 @@ LivingLooper {
 		theme = theme ? LLTheme.new;
 
 		server_control = LLServerControl.new(
-			Server.default, {r.reset; r.play(AppClock)});
+			Server.default, 
+			{r.reset; r.play(AppClock)},
+			{/* on device change */}
+		);
 
 		model_picker = PopUpMenu()
 		// .allowsReselection_(true)
@@ -1288,22 +1323,22 @@ LivingLooper {
 
 		input_picker = PopUpMenu()
 		// .minWidth_(300)
-		.items_([1,2])
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.font_(theme.font_button)
 		.toolTip_("choose a mono input channel")
-		.action_{ll.synth.set(\inbus, input_picker.value)}
+		.action_{this.set_input_bus}
 		;
 		output_picker = PopUpMenu()
 		// .minWidth_(300)
-		.items_(["1-2", "2-3", "3-4"]) // TODO
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.font_(theme.font_button)
 		.toolTip_("choose a range of output channels")
-		.action_{ll.synth.set(\outbus, output_picker.value)}
+		.action_{this.set_output_bus}
 		;
+
+		this.set_io_options;
 
 		meter_view = View().maxHeight_(80);
 		this.make_meter;
@@ -1314,7 +1349,7 @@ LivingLooper {
 			.stringColor_(theme.color_highlight)
 			.font_(Font("Helvetica", 60)),
 			StaticText()
-			.string_("v1.1.1")
+			.string_("v1.2.0b")
 			.stringColor_(theme.color_highlight)
 			.font_(Font("Helvetica", 32)),
 		).spacing_(0);
@@ -1346,7 +1381,10 @@ LivingLooper {
 		.toolTip_("master output gain")
 		.value_(0.5);
 
-		window = Window.new("Living Looper", bounds:Rect(200, 500, hsize, 150))
+		window.isNil.if{ window = 
+			Window.new("Living Looper", bounds:Rect(200, 500, hsize, 150))
+		};
+		window
 		.background_(theme.color_bg)
 		.layout_(VLayout(
 			[HLayout(
@@ -1402,4 +1440,19 @@ LivingLooper {
 	end { |idx| ll.end(idx)	}
 	auto { ll.auto }
 	thru { ll.thru } 
+
+	inBus { |idx|
+		input_picker.enabled_(idx.isNil);
+		in_bus_override = idx;
+		this.set_input_bus;
+	}
+	outBus { |idx|
+		output_picker.enabled_(idx.isNil);
+		out_bus_override = idx;
+		this.set_output_bus;
+	}
+
+	getLoopBus { ^ ll.loops_bus }
+
+	asTarget { ^ ll.synth.asTarget }
 }
