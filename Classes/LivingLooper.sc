@@ -1115,6 +1115,8 @@ LivingLooper {
 	var midi_state;
 
 	var hsize = 1200;
+	var vsize_init = 150;
+	var vsize_default = 560;
 
 	*new { |...args|
 		// NOTE: best for apple silicon
@@ -1163,11 +1165,12 @@ LivingLooper {
 			// add GUI to window
 			window.layout.add(ll.gui, stretch:1);
 			// increase window size
-			window.setInnerExtent(hsize, 560);
-
+			window.setInnerExtent(
+				window.bounds.width, 
+				max(0, vsize_default - vsize_init) * window.bounds.width / hsize + (vsize_init * 9 / 10)
+			);
+			// allow quitting the model picker without anything happening
 			model_picker.allowsReselection_(false);
-
-
 		}
 	}
 
@@ -1176,8 +1179,9 @@ LivingLooper {
 			midi_state = ll.mapper.nameToKey;
 			ll.destroy;
 		};
+		// allow using the model picker to start a LivingLooperGUI instance
+		// without rebooting the server
 		model_picker.allowsReselection_(true);
-
 	}
 
 	install {
@@ -1387,7 +1391,7 @@ LivingLooper {
 		.value_(0.5);
 
 		window.isNil.if{ window = 
-			Window.new("Living Looper", bounds:Rect(200, 500, hsize, 150))
+			Window.new("Living Looper", bounds:Rect(200, 500, hsize, vsize_init))
 		};
 		window
 		.background_(theme.color_bg)
