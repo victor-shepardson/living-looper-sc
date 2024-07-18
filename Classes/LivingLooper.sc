@@ -1,3 +1,9 @@
+// pattern: 
+//	GUI elements are created only in .init methods
+//	Layouts are created only in .gui methods
+//  this way, the .gui method can compose other objects,
+//  and the GUI can be rearranged just by replacing the layout on a view
+
 LLTheme {
 	var <color_bg, <color_fg, <color_dark, <color_text, <color_alert, <color_highlight;
 	var <color_green, <color_yellow;
@@ -41,6 +47,41 @@ LLTheme {
 
 	knob_colors {
 		^ [color_fg, color_highlight, color_fg, color_highlight]
+	}
+}
+
+LLLabel {
+
+	var <item;
+	var <theme;
+	var <text;
+	var <label;
+	var <view;
+
+	*new { |...args|
+		^super.newCopyArgs(*args).init;
+	}
+
+	init {
+		theme = theme ? LLTheme.new;
+		label = StaticText()
+			.string_(text)
+			.stringColor_(theme.color_text)
+			.font_(theme.font_label)
+		;
+	}
+
+	gui {
+		var align = (item.class==Knob).if{\center}{\left};
+		var layout = VLayout(
+			[label, align:align],
+			item
+		).spacing_(0).margins_(0);
+		^ view.if{
+			View().layout_(layout)
+		}{
+			layout
+		}
 	}
 }
 
@@ -101,6 +142,9 @@ LLMeter : ServerMeterView {
 			});
 		};
 
+		// this does not respect the GUI pattern stated above,
+		// since it it derived from SC's ServerMeterView,
+		// but it's fine for now
 		view.layout_(HLayout(*(
 			numIns.collect{ |i| VLayout(
 				inmeters[i], [inlabels[i], align:\center])}
@@ -123,6 +167,14 @@ LLServerControl {
 	var <boot_button, <rate_box, <hblock_box, <cblock_box;
 	var <inchan_box, <outchan_box, <indevice_drop, <outdevice_drop;
 
+	var indevice_l;
+	var outdevice_l;
+	var rate_l;
+	var hblock_l;
+	var cblock_l;
+	var inchan_l;
+	var outchan_l;
+	
 	var boxwidth = 92;
 	var dropwidth = 230;
 
@@ -244,25 +296,24 @@ LLServerControl {
 		.action_{ on_device_change.value }
 		;
 
+		indevice_l = theme.label(indevice_drop, "input device");
+		outdevice_l = theme.label(outdevice_drop, "output device");
+		rate_l = theme.label(rate_box, "sampling rate");
+		hblock_l = theme.label(hblock_box, "driver block");
+		cblock_l = theme.label(cblock_box, "control block");
+		inchan_l = theme.label(inchan_box, "in channels");
+		outchan_l = theme.label(outchan_box, "out channels");
+
 		^this
 	}
 
 	gui {
 		^VLayout(
 			HLayout(
-				theme.label(indevice_drop, "input device"),
-				theme.label(outdevice_drop, "output device")
+				indevice_l, outdevice_l
 			).spacing_(theme.spacing),
-			// HLayout(
-			// 	theme.label(inchan_box, "input channels"),
-			// 	theme.label(outchan_box, "output channels")
-			// ),
 			HLayout(
-				theme.label(rate_box, "sampling rate"),
-				theme.label(hblock_box, "driver block"),
-				theme.label(cblock_box, "control block"),
-				theme.label(inchan_box, "in channels"),
-				theme.label(outchan_box, "out channels")
+				rate_l, hblock_l, cblock_l, inchan_l, outchan_l
 			).spacing_(theme.spacing),
 			boot_button,
 		).spacing_(theme.spacing)
@@ -834,7 +885,7 @@ LivingLooperGUI {
 	var <mapper;
 	var <loops_bus;
 
-	var <gui;
+	// var <gui;
 
 	ar { |input, blockSize=nil|
 		var out, zs; 
@@ -1003,29 +1054,46 @@ LivingLooperGUI {
 		};
 
 		// GUI layout
-		gui = View().layout_(
-			VLayout(
-				HLayout(
-					thruButton,
-					autoButton,
-					mapper.gui
-				).spacing_(theme.spacing),
-				HLayout(
-					*nLoops.collect{ |i| [VLayout(
-						VLayout(
-							[displays[i], stretch:5],
-							[freqscopes[i], stretch:1],
-						).spacing_(0),
-						eraseButtons[i],
-						loopButtons[i]
-					).spacing_(theme.spacing), stretch:1]},
-				).spacing_(theme.spacing),
-			).margins_(0)
+		// gui = View().layout_(
+		// 	VLayout(
+		// 		HLayout(
+		// 			thruButton,
+		// 			autoButton,
+		// 			mapper.gui
+		// 		).spacing_(theme.spacing),
+		// 		HLayout(
+		// 			*nLoops.collect{ |i| [VLayout(
+		// 				VLayout(
+		// 					[displays[i], stretch:5],
+		// 					[freqscopes[i], stretch:1],
+		// 				).spacing_(0),
+		// 				eraseButtons[i],
+		// 				loopButtons[i]
+		// 			).spacing_(theme.spacing), stretch:1]},
+		// 		).spacing_(theme.spacing),
+		// 	).margins_(0)
+		// )
+	}
+
+	gui {
+		^ VLayout(
+			HLayout(thruButton, autoButton, mapper.gui)
+				.spacing_(theme.spacing),
+			HLayout(*nLoops.collect{ |i| 
+				[VLayout(
+					VLayout(
+						[displays[i], stretch:5],
+						[freqscopes[i], stretch:1],
+					).spacing_(0),
+					eraseButtons[i],
+					loopButtons[i]
+				).spacing_(theme.spacing), stretch:1]
+			}).spacing_(theme.spacing)
 		)
 	}
 
 	destroy {
-		gui.remove;
+		// gui.remove;
 		synth !? (_.free);
 		this.cleanup;
 	}
@@ -1103,8 +1171,16 @@ LivingLooper {
 	var input_picker;
 	var output_picker;
 	var meter_view;
-	var force_dl;
+	var force_dl, force_dl_button;
 	var input_gain_knob, dry_gain_knob, output_gain_knob;
+	var mixers;
+
+	var model_picker_l;
+	var input_picker_l;
+	var output_picker_l;
+	var input_gain_l;
+	var dry_gain_l;
+	var output_gain_l;
 
 	var title;
 	var <ll;
@@ -1136,7 +1212,21 @@ LivingLooper {
 		;
 	}
 
+	make_mixers {
+		mixers.isNil.if{mixers = List.new};
+
+		max(0, ll.nLoops - mixers.size).do{
+			mixers.add(LLMixer())
+		};
+
+		mixers.do{ |m, i|
+			m.visible_(i<ll.nLoops) //TODO
+		};
+	}
+
 	make_synth {
+		var vspace = window.bounds.height + 50;
+
 		server_control.server.serverRunning.if{
 
 			this.set_io_options;
@@ -1144,6 +1234,9 @@ LivingLooper {
 			this.make_meter;
 
 			ll = LivingLooperGUI(\standalone);
+
+			this.make_mixers;
+
 			// copy previous MIDI mapper state over
 			midi_state.notNil.if{ 
 				ll.mapper.nameToKey.putAll(midi_state); 
@@ -1153,21 +1246,25 @@ LivingLooper {
 			ll.synth = SynthDef(\ll++ll.id, {
 				var in = In.ar(\inbus.kr(this.get_input_bus))
 					* \input_gain.kr(input_gain_knob.value);
-				var out = ll.ar(in, blockSize:nil);
+				var loops = ll.ar(in, blockSize:nil);
 				var stereo = \dry_gain.kr(dry_gain_knob.value)/2.sqrt * in 
-					+ Splay.ar(out);
+					+ Splay.ar(loops);
 				stereo = Limiter.ar(
 					stereo * 2 * \output_gain.kr(output_gain_knob.value));
 				Out.ar(\outbus.kr(this.get_output_bus), stereo);
-				Out.ar(ll.loops_bus, out);
+				Out.ar(ll.loops_bus, loops); //this is used by the visualization
 			}).play(target?Server.default, addAction:addAction?\addToHead);
 
 			// add GUI to window
-			window.layout.add(ll.gui, stretch:1);
+			// window.layout.add(ll.gui, stretch:1);
+			// window.asView.removeAll;
+			window.layout_(this.gui);
 			// increase window size
 			window.setInnerExtent(
 				window.bounds.width, 
-				max(0, vsize_default - vsize_init) * window.bounds.width / hsize + (vsize_init * 9 / 10)
+				max(0, vsize_default - vspace) 
+				* window.bounds.width / hsize
+				+ vspace
 			);
 			// allow quitting the model picker without anything happening
 			model_picker.allowsReselection_(false);
@@ -1279,19 +1376,19 @@ LivingLooper {
 		// put these startup steps in a Routine, 
 		// so that when it is played on the AppClock,
 		// GUI calls and Condition.wait are both available
-		var force_dl_ = false;
 		var r = Routine{
 			this.install;
 			"-----LOAD-----".postln;
 			LivingLooperCore.load(
 				\standalone, model_picker.item, 
-				forceDownload: force_dl_);
+				forceDownload: force_dl);
 			force_dl = false;
 			"-----STOP-----".postln;
 			this.stop_synth;
 			"-----MAKE-----".postln;
 			this.make_synth;
 		};
+		force_dl = false;
 
 		theme = theme ? LLTheme.new;
 
@@ -1320,13 +1417,13 @@ LivingLooper {
 			}
 		};
 
-		force_dl = Button()
+		force_dl_button = Button()
 		.states_([["dl", theme.color_alert, theme.color_fg]])
 		.maxWidth_(25)
 		.font_(theme.font_button)
 		.toolTip_("force download of current model (to get updates)")
 		.action_{
-			force_dl_ = true;
+			force_dl = true;
 			r.reset; r.play(AppClock);
 		};
 
@@ -1395,31 +1492,49 @@ LivingLooper {
 		};
 		window
 		.background_(theme.color_bg)
-		.layout_(VLayout(
+		.layout_(this.gui)
+		.onClose_{
+			ll.notNil.if{ll.cleanup};
+		}
+		.front;
+
+		// this leads to the layout getting destroyed and not recreated?
+		// model_picker_l = theme.label(
+			// HLayout(model_picker, force_dl_button), "Model", view:true);
+		model_picker_l = theme.label(model_picker, "Model", view:true);
+		input_picker_l = theme.label(input_picker, "Input", view:true);
+		output_picker_l = theme.label(output_picker, "Output", view:true);
+
+		input_gain_l = theme.label(input_gain_knob, "Input", view:true);
+		dry_gain_l = theme.label(dry_gain_knob, "Dry", view:true);
+		output_gain_l = theme.label(output_gain_knob, "Output", view:true);
+	}
+
+	gui {
+		^ VLayout(
 			[HLayout(
 				[title, stretch:2, align:\center],
 				[VLayout(
-					theme.label(
-						HLayout(model_picker, force_dl), 
-					"Model", view:true),
+					// model_picker_l,
+					HLayout(model_picker_l, force_dl_button),
 					HLayout(
-						theme.label(input_picker, "Input", view:true),
+						input_picker_l,
 						meter_view,
-						theme.label(output_picker, "Output", view:true)
+						output_picker_l
 					)
 				), stretch:1, align:\center],
 				[server_control.gui, stretch:0],
 			), stretch:0],
 			[HLayout(
-				theme.label(input_gain_knob, "Input", view:true), 
-				theme.label(dry_gain_knob, "Dry", view:true),
-				theme.label(output_gain_knob, "Output", view:true),
-			), stretch:0]
-		))
-		.onClose_{
-			ll.notNil.if{ll.cleanup};
-		}
-		.front;
+				input_gain_l,
+				dry_gain_l,
+				output_gain_l,
+			), stretch:0],
+			ll!?{[ll.gui, stretch:1]},
+			mixers!?{[HLayout(*mixers.collect{ |g| g.gui}), stretch:0]}
+			// LLGUI
+			// mixers
+		)
 	}
 
 	// programmatic control from sclang
@@ -1464,4 +1579,74 @@ LivingLooper {
 	getLoopBus { ^ ll.loops_bus }
 
 	asTarget { ^ ll.synth.asTarget }
+}
+
+LLPanner {
+	var <theme;
+	var knob;
+	var box;
+
+	*new { |...args|
+		^super.newCopyArgs(*args).init;
+	}
+
+	init {
+		theme = theme ? LLTheme.new;
+
+		knob = Knob()
+		.color_(theme.knob_colors)
+		.mode_(\vert)
+		.toolTip_("pan (in stereo mode)")
+		.value_(0.5)
+		.action_{};
+
+		box = NumberBox()
+		.background_(theme.color_bg)
+		.stringColor_(theme.color_text)
+		.normalColor_(theme.color_text)
+		.typingColor_(theme.color_alert)
+		;
+	}
+
+	gui {
+		^ HLayout(
+			box, knob
+		)
+	}
+}
+
+LLMixer {
+	var <theme;
+
+	var <>visible; // TODO
+
+	var panner;
+	var mute_button;
+	var solo_button;
+
+	*new { |...args|
+		^super.newCopyArgs(*args).init;
+	}
+
+	init {
+		theme = theme ? LLTheme.new;
+
+		panner = LLPanner();
+		mute_button = Button()
+		.states_([
+			["mute",theme.color_text,theme.color_fg],
+			["mute",theme.color_alert,theme.color_bg]])
+		;
+		solo_button = Button()
+		.states_([
+			["solo",theme.color_text,theme.color_fg],
+			["solo",theme.color_yellow,theme.color_bg]])
+		;
+	}
+
+	gui {
+		^ HLayout(
+			mute_button, solo_button, panner.gui
+		)
+	}
 }
