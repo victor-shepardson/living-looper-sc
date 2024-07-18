@@ -28,23 +28,6 @@ LLTheme {
 
 	}
 
-	label { |item, text, view=false|
-		var align = (item.class==Knob).if{\center}{\left};
-		var layout = VLayout(
-			[
-				StaticText().string_(text)
-				.stringColor_(color_text)
-				.font_(font_label)
-				, align:align],
-			item
-		).spacing_(0).margins_(0);
-		^ view.if{
-			View().layout_(layout)
-		}{
-			layout
-		}
-	}
-
 	knob_colors {
 		^ [color_fg, color_highlight, color_fg, color_highlight]
 	}
@@ -53,10 +36,10 @@ LLTheme {
 LLLabel {
 
 	var <item;
-	var <theme;
 	var <text;
+	var <theme;
+
 	var <label;
-	var <view;
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
@@ -69,19 +52,15 @@ LLLabel {
 			.stringColor_(theme.color_text)
 			.font_(theme.font_label)
 		;
+		^this
 	}
 
 	gui {
 		var align = (item.class==Knob).if{\center}{\left};
-		var layout = VLayout(
+		^ VLayout(
 			[label, align:align],
 			item
 		).spacing_(0).margins_(0);
-		^ view.if{
-			View().layout_(layout)
-		}{
-			layout
-		}
 	}
 }
 
@@ -296,13 +275,13 @@ LLServerControl {
 		.action_{ on_device_change.value }
 		;
 
-		indevice_l = theme.label(indevice_drop, "input device");
-		outdevice_l = theme.label(outdevice_drop, "output device");
-		rate_l = theme.label(rate_box, "sampling rate");
-		hblock_l = theme.label(hblock_box, "driver block");
-		cblock_l = theme.label(cblock_box, "control block");
-		inchan_l = theme.label(inchan_box, "in channels");
-		outchan_l = theme.label(outchan_box, "out channels");
+		indevice_l = LLLabel(indevice_drop, "input device");
+		outdevice_l = LLLabel(outdevice_drop, "output device");
+		rate_l = LLLabel(rate_box, "sampling rate");
+		hblock_l = LLLabel(hblock_box, "driver block");
+		cblock_l = LLLabel(cblock_box, "control block");
+		inchan_l = LLLabel(inchan_box, "in channels");
+		outchan_l = LLLabel(outchan_box, "out channels");
 
 		^this
 	}
@@ -310,10 +289,10 @@ LLServerControl {
 	gui {
 		^VLayout(
 			HLayout(
-				indevice_l, outdevice_l
+				indevice_l.gui, outdevice_l.gui
 			).spacing_(theme.spacing),
 			HLayout(
-				rate_l, hblock_l, cblock_l, inchan_l, outchan_l
+				rate_l.gui, hblock_l.gui, cblock_l.gui, inchan_l.gui, outchan_l.gui
 			).spacing_(theme.spacing),
 			boot_button,
 		).spacing_(theme.spacing)
@@ -1182,7 +1161,7 @@ LivingLooper {
 	var dry_gain_l;
 	var output_gain_l;
 
-	var title;
+	var title_main, title_sub;
 	var <ll;
 
 	var in_bus_override;
@@ -1449,16 +1428,14 @@ LivingLooper {
 		meter_view = View().maxHeight_(80);
 		this.make_meter;
 
-		title = VLayout(
-			StaticText()
+		title_main = StaticText()
 			.string_("Living Looper")
 			.stringColor_(theme.color_highlight)
-			.font_(Font("Helvetica", 60)),
-			StaticText()
+			.font_(Font("Helvetica", 60));
+		title_sub =	StaticText()
 			.string_("v1.2.0b")
 			.stringColor_(theme.color_highlight)
-			.font_(Font("Helvetica", 32)),
-		).spacing_(0);
+			.font_(Font("Helvetica", 32));
 
 		input_gain_knob = Knob()
 		.color_(theme.knob_colors)
@@ -1487,6 +1464,14 @@ LivingLooper {
 		.toolTip_("master output gain")
 		.value_(0.5);
 
+		model_picker_l = LLLabel(model_picker, "Model");
+		input_picker_l = LLLabel(input_picker, "Input");
+		output_picker_l = LLLabel(output_picker, "Output");
+
+		input_gain_l = LLLabel(input_gain_knob, "Input");
+		dry_gain_l = LLLabel(dry_gain_knob, "Dry");
+		output_gain_l = LLLabel(output_gain_knob, "Output");
+
 		window.isNil.if{ window = 
 			Window.new("Living Looper", bounds:Rect(200, 500, hsize, vsize_init))
 		};
@@ -1498,37 +1483,31 @@ LivingLooper {
 		}
 		.front;
 
-		// this leads to the layout getting destroyed and not recreated?
-		// model_picker_l = theme.label(
-			// HLayout(model_picker, force_dl_button), "Model", view:true);
-		model_picker_l = theme.label(model_picker, "Model", view:true);
-		input_picker_l = theme.label(input_picker, "Input", view:true);
-		output_picker_l = theme.label(output_picker, "Output", view:true);
-
-		input_gain_l = theme.label(input_gain_knob, "Input", view:true);
-		dry_gain_l = theme.label(dry_gain_knob, "Dry", view:true);
-		output_gain_l = theme.label(output_gain_knob, "Output", view:true);
+		^this
 	}
 
 	gui {
 		^ VLayout(
 			[HLayout(
-				[title, stretch:2, align:\center],
 				[VLayout(
-					// model_picker_l,
-					HLayout(model_picker_l, force_dl_button),
+					title_main, 
+					title_sub
+					).spacing_(0), stretch:2, align:\center],
+				[VLayout(
+					// model_picker_l.gui,
+					HLayout(model_picker_l.gui, force_dl_button),
 					HLayout(
-						input_picker_l,
+						input_picker_l.gui,
 						meter_view,
-						output_picker_l
+						output_picker_l.gui
 					)
 				), stretch:1, align:\center],
 				[server_control.gui, stretch:0],
 			), stretch:0],
 			[HLayout(
-				input_gain_l,
-				dry_gain_l,
-				output_gain_l,
+				input_gain_l.gui,
+				dry_gain_l.gui,
+				output_gain_l.gui,
 			), stretch:0],
 			ll!?{[ll.gui, stretch:1]},
 			mixers!?{[HLayout(*mixers.collect{ |g| g.gui}), stretch:0]}
