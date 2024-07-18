@@ -62,10 +62,10 @@ set output gain (multiplicative with dryGain)
 argument::gain
 linear gain (0-1)
 
-method::inBus
+method::setInBus
 set the (mono) input bus index, overriding the graphical picker
 
-method::outBus
+method::setOutBus
 set the (stereo) output bus index, overriding the graphical picker
 
 method::getLoopBus

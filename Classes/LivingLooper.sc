@@ -46,7 +46,7 @@ LLLabel {
 	}
 
 	init {
-		theme = theme ? LLTheme.new;
+		theme = theme ?? {LLTheme.new};
 		label = StaticText()
 			.string_(text)
 			.stringColor_(theme.color_text)
@@ -56,10 +56,10 @@ LLLabel {
 	}
 
 	gui {
-		var align = (item.class==Knob).if{\center}{\left};
+		var align = ((item.class==Knob) || (item.class==LLPanner) ).if{\center}{\left};
 		^ VLayout(
 			[label, align:align],
-			item
+			item.class.findMethod(\gui).isNil.if{item}{item.gui}
 		).spacing_(0).margins_(0);
 	}
 }
@@ -91,7 +91,7 @@ LLMeter : ServerMeterView {
 		view.onClose_( { this.stop });
 		//////
 
-		theme = theme ? LLTheme.new; 
+		theme = theme ?? {LLTheme.new}; 
 
 		// ins
 		if(numIns > 0) {
@@ -168,7 +168,7 @@ LLServerControl {
 
 	init {
 		server = server ? Server.default;
-		theme = theme ? LLTheme.new;
+		theme = theme ?? {LLTheme.new};
 		boot_button = Button.new
 		.states_([
 			["start audio",theme.color_green,theme.color_fg],
@@ -342,9 +342,11 @@ LLMIDIMapper {
 			}, ephemeral:true)
 		};
 
+		buttons.postln;
 		// then set all in map
 		nameToKey.pairsDo{ |name, key|
 			var button = buttons.at(name.asSymbol);
+			[name, button, name.class].postln;
 			button.states_(button.initial_states.collect{ |state| 
 				[this.get_text(key, state[0])] ++ state[1..]
 			}, ephemeral:true)
@@ -376,7 +378,7 @@ LLMIDIMapper {
 			LivingLooperCore.filenameSymbol.asString
 		).parentPath).parentPath +/+ "midi";
 
-		theme = theme ? LLTheme.new;
+		theme = theme ?? {LLTheme.new};
 		buttons = IdentityDictionary.new;
 		nameToKey = IdentityDictionary.new;
 		keyToName = Dictionary.new;
@@ -389,9 +391,13 @@ LLMIDIMapper {
 		.font_(theme.font_button)
 		.toolTip_("toggle MIDI mapping. when mapping, click a button in the GUI, and it will become associated with the next MIDI message to arrive.")
 		.action_{
+			[\TOGGLE,  toggle.identityHash, toggle.value, toggle.value.class].postln;
+			// (toggle.value==1).if{MIDIIn.connectAll};
 			// update button appearances
 			this.set_states;
 		};
+		[\CREATE, \TOGGLE,  toggle.identityHash, toggle.value, toggle.value.class].postln;
+
 
 		save_button = Button()
 		.states_([["save map", theme.color_text, theme.color_fg]])
@@ -444,13 +450,18 @@ LLMIDIMapper {
 			// noteOn can trigger MIDI mapping
 			// noteOn sets button to state 1
 			{
+				// [endpoint, key, toggle.value].postln;	
+				[\MIDI, \TOGGLE, toggle.identityHash, toggle.value, toggle.value.class].postln;
+
 				(toggle.value==1).if{
 					// when mapping is toggled on, a MIDI handler associates 
 					// incoming messages type/value/chan/src with the target button
+					[\add, this.target].postln;
 					this.add(key, this.target);
 				}{
 					// when toggled off, a MIDI handler dispatches mapped message type/value/src to buttons
 					var button = this.match(key);
+					[\dispatch, button].postln;
 					button.notNil.if{
 						button.valueAction_(1);
 					}
@@ -517,17 +528,17 @@ LLMIDIMapper {
 LLMIDIButton : Button {
 	var <>mapper; 
 	var <>name;
-	var <>initial_states;
+	var <initial_states;
 
 	*new { |mapper, name, parent, bounds| 
-		var inst = super.new(parent, bounds).mapper_(mapper).name_(name);
-		// [parent, bounds, mapper, name].postln;
+		var inst = super.new(parent, bounds).mapper_(mapper).name_(name.asSymbol);
+		[parent, bounds, mapper, name].postln;
 		mapper.buttons.add(name -> inst);
 		^inst
 	}
 
 	states_{ |states, ephemeral=false| 
-		ephemeral.not.if{this.initial_states = states};
+		ephemeral.not.if{initial_states = states};
 		^super.states_(states)
 	}
 
@@ -845,6 +856,7 @@ LivingLooperGUI {
 	// SynthDefs / interfaces
 	var <name;
 	var <l0_sign;
+	var <mapper;
 	var <theme;
 
 	var <>id;
@@ -861,7 +873,6 @@ LivingLooperGUI {
 	var <displays;
 	var <freqscopes;
 	var <latents;
-	var <mapper;
 	var <loops_bus;
 
 	// var <gui;
@@ -902,9 +913,11 @@ LivingLooperGUI {
 		nLatent = NN(name, \encode).numOutputs;
 		nLoops = NN(name, \forward).numOutputs;
 		id = UniqueID.next;
-		theme = theme ? LLTheme.new;
+		theme = theme ?? {LLTheme.new};
 
-		mapper = LLMIDIMapper.new;
+		mapper = mapper ?? {LLMIDIMapper.new};
+		[\MAPPER, mapper.identityHash, mapper.toggle.identityHash].postln;
+
 
 		// loop buttons start / end recording
 		loopButtons = nLoops.collect{ |i| 
@@ -1031,27 +1044,6 @@ LivingLooperGUI {
 				synth!?(_.set(\thru, 0))
 			}
 		};
-
-		// GUI layout
-		// gui = View().layout_(
-		// 	VLayout(
-		// 		HLayout(
-		// 			thruButton,
-		// 			autoButton,
-		// 			mapper.gui
-		// 		).spacing_(theme.spacing),
-		// 		HLayout(
-		// 			*nLoops.collect{ |i| [VLayout(
-		// 				VLayout(
-		// 					[displays[i], stretch:5],
-		// 					[freqscopes[i], stretch:1],
-		// 				).spacing_(0),
-		// 				eraseButtons[i],
-		// 				loopButtons[i]
-		// 			).spacing_(theme.spacing), stretch:1]},
-		// 		).spacing_(theme.spacing),
-		// 	).margins_(0)
-		// )
 	}
 
 	gui {
@@ -1072,7 +1064,6 @@ LivingLooperGUI {
 	}
 
 	destroy {
-		// gui.remove;
 		synth !? (_.free);
 		this.cleanup;
 	}
@@ -1134,7 +1125,7 @@ LivingLooperGUI {
 	}
 
 	cleanup {
-		freqscopes ? freqscopes.do(_.kill);
+		freqscopes !? {freqscopes.do{ |fr| fr.kill}};
 	}
 }
 
@@ -1143,6 +1134,7 @@ LivingLooper {
 // including server control, model loading, input and output routing
 	var target;
 	var addAction;
+	var <mapper;
 	var <theme;
 	var <window;
 	var server_control;
@@ -1151,7 +1143,7 @@ LivingLooper {
 	var output_picker;
 	var meter_view;
 	var force_dl, force_dl_button;
-	var input_gain_knob, dry_gain_knob, output_gain_knob;
+	var input_gain_knob, dry_gain_knob, dry_panner, output_gain_knob;
 	var mixers;
 
 	var model_picker_l;
@@ -1159,19 +1151,23 @@ LivingLooper {
 	var output_picker_l;
 	var input_gain_l;
 	var dry_gain_l;
+	var dry_pan_l;
 	var output_gain_l;
 
 	var title_main, title_sub;
 	var <ll;
+	var ll_view;
 
 	var in_bus_override;
 	var out_bus_override;
 
-	var midi_state;
+	// var midi_state;
 
 	var hsize = 1200;
 	var vsize_init = 150;
 	var vsize_default = 560;
+
+	var window_size_unset = true;
 
 	*new { |...args|
 		// NOTE: best for apple silicon
@@ -1194,13 +1190,44 @@ LivingLooper {
 	make_mixers {
 		mixers.isNil.if{mixers = List.new};
 
-		max(0, ll.nLoops - mixers.size).do{
-			mixers.add(LLMixer())
+		max(0, ll.nLoops - mixers.size).do{ |i|
+			mixers.add(LLMixer(mapper, i+1))
 		};
 
 		mixers.do{ |m, i|
+			var gate_action = {
+				ll.synth.notNil.if{ll.synth.set(\gate, this.get_gates)}};
+			m.mute_button.action_(gate_action);
+			m.solo_button.action_(gate_action);
+			m.panner.action_{ |knob=nil, box=nil|
+				var c = this.output_picker_to_chan;
+				var n = this.output_picker_to_width;
+				box.isNil.if{ box = knob * n + c };
+				knob.isNil.if{ knob = box - c / n };
+				m.panner.knob.value_(knob);
+				m.panner.box.value_(box);
+				ll.notNil.if{ll.synth.set(\pan, this.get_pans)};
+			};
+			m.panner.knob.valueAction_(i/(mixers.size-1));
+
 			m.visible_(i<ll.nLoops) //TODO
 		};
+	}
+
+	get_gates {
+		// gate = solo or not (mute or any(solo))
+		// ~: 1-x
+		// and: &
+		// or: |
+		// any: sum.sign
+		// solo | (1 - (mute | solo.sum.sign))
+		var mutes = mixers.collect{ |m| m.mute_button.value};
+		var solos = mixers.collect{ |m| m.solo_button.value};
+		^ solos | (1 - (mutes | solos.sum.sign))
+	}
+
+	get_pans {
+		^ mixers.collect{ |m| m.panner.value} 
 	}
 
 	make_synth {
@@ -1212,25 +1239,53 @@ LivingLooper {
 
 			this.make_meter;
 
-			ll = LivingLooperGUI(\standalone);
+			ll_view.notNil.if{ll_view.removeAll};
+			ll = LivingLooperGUI(\standalone, nil, mapper);
 
 			this.make_mixers;
 
 			// copy previous MIDI mapper state over
-			midi_state.notNil.if{ 
-				ll.mapper.nameToKey.putAll(midi_state); 
-				ll.mapper.set_states;
-			};
+			// midi_state.notNil.if{ 
+				// ll.mapper.nameToKey.putAll(midi_state); 
+				// ll.mapper.set_states;
+			// };
 			// create Synth on the server
 			ll.synth = SynthDef(\ll++ll.id, {
-				var in = In.ar(\inbus.kr(this.get_input_bus))
+				var nchan = server_control.server.options.numOutputBusChannels;
+				var in = 
+					In.ar(\inbus.kr(this.get_input_bus))
 					* \input_gain.kr(input_gain_knob.value);
-				var loops = ll.ar(in, blockSize:nil);
-				var stereo = \dry_gain.kr(dry_gain_knob.value)/2.sqrt * in 
-					+ Splay.ar(loops);
-				stereo = Limiter.ar(
-					stereo * 2 * \output_gain.kr(output_gain_knob.value));
-				Out.ar(\outbus.kr(this.get_output_bus), stereo);
+				var loops = 
+					ll.ar(in, blockSize:nil)
+					* \gate.kr(this.get_gates);
+
+				var mix = Mix(PanAz.ar(
+					nchan, 
+					loops, 
+					\pan.kr(this.get_pans) - 1 * (2/nchan),
+					orientation:0
+					));
+
+				mix = \dry_gain.kr(dry_gain_knob.value) 
+					* PanAz.ar(
+						nchan, 
+						in, 
+						\dry_pan.kr(dry_panner.value) - 1 * (2/nchan),
+						orientation:0
+					) + mix;
+
+				mix = Limiter.ar(
+					mix * 2 * \output_gain.kr(output_gain_knob.value));
+
+				Out.ar(\outbus.kr(this.get_output_bus), mix);
+
+				// var stereo = 
+				// 	\dry_gain.kr(dry_gain_knob.value)/2.sqrt * in 
+				// 	+ Splay.ar(loops);
+				// stereo = Limiter.ar(
+				// 	stereo * 2 * \output_gain.kr(output_gain_knob.value));
+				// Out.ar(\outbus.kr(this.get_output_bus), stereo);
+
 				Out.ar(ll.loops_bus, loops); //this is used by the visualization
 			}).play(target?Server.default, addAction:addAction?\addToHead);
 
@@ -1239,12 +1294,15 @@ LivingLooper {
 			// window.asView.removeAll;
 			window.layout_(this.gui);
 			// increase window size
-			window.setInnerExtent(
-				window.bounds.width, 
-				max(0, vsize_default - vspace) 
-				* window.bounds.width / hsize
-				+ vspace
-			);
+			window_size_unset.if{
+				window.setInnerExtent(
+					window.bounds.width, 
+					max(0, vsize_default - vspace) 
+					* window.bounds.width / hsize
+					+ vspace
+				);
+				window_size_unset = false;
+			};
 			// allow quitting the model picker without anything happening
 			model_picker.allowsReselection_(false);
 		}
@@ -1252,7 +1310,7 @@ LivingLooper {
 
 	stop_synth {
 		ll.notNil.if{
-			midi_state = ll.mapper.nameToKey;
+			// midi_state = ll.mapper.nameToKey;
 			ll.destroy;
 		};
 		// allow using the model picker to start a LivingLooperGUI instance
@@ -1317,20 +1375,23 @@ LivingLooper {
 	}
 
 	set_io_options {
-		var n_out = 2; // TODO control this?
 
-		var inval = input_picker.value ? 0;
-		var outval = output_picker.value ? 0;
+		var n_in = server_control.server.options.numInputBusChannels;
+		var n_out = server_control.server.options.numOutputBusChannels;
+		var inval = input_picker.value ? 0; //first channel
+		var outval = output_picker.value ? n_out; //first stereo
 
-		input_picker.items_(
-			server_control.server.options.numInputBusChannels
-			.collect{ |i| i+1 });
+		input_picker.items_(n_in.collect{ |i| i+1 });
 		inval.notNil.if{(inval < input_picker.items.size).if{
 			input_picker.value_(inval)}};
 
 		output_picker.items_(
-			(server_control.server.options.numOutputBusChannels+1-n_out)
-			.collect{ |i| "%-%".format(i+1, i+n_out) });
+			n_out.collect{ |i| "%".format(i+1) } //mono options
+			++
+			(n_out-1).collect{ |i| "%-%".format(i+1, i+2) } //stereo options
+			++
+			["multi"]
+			);
 		outval.notNil.if{(outval < output_picker.items.size).if{
 			output_picker.value_(outval)}};
 	}
@@ -1344,8 +1405,24 @@ LivingLooper {
 		ll.notNil.if{ll.synth.set(\inbus, this.get_input_bus)}
 	}
 
+	output_picker_to_chan {
+		var i = output_picker.value;
+		var n = output_picker.items.size;
+		var c = (n/2).asInteger;
+		// first N are mono,
+		// next N-1 are stereo,
+		// last is multichannel
+		^(i==(n-1)).if{0}{i%c} + 1
+	}
+	output_picker_to_width {
+		var i = output_picker.value;
+		var n = output_picker.items.size;
+		var c = n/2;
+		// [i,n,c].postln;
+		^(i==(n-1)).if{c-1}{(i/c).asInteger}
+	}
 	get_output_bus {
-		^ out_bus_override ? output_picker.value
+		^ out_bus_override ? 0
 	}
 	set_output_bus {
 		ll.notNil.if{ll.synth.set(\outbus, this.get_output_bus)}
@@ -1369,7 +1446,9 @@ LivingLooper {
 		};
 		force_dl = false;
 
-		theme = theme ? LLTheme.new;
+		mapper = mapper ?? {LLMIDIMapper.new};
+		[\MAPPER, mapper.identityHash, mapper.toggle.identityHash].postln;
+		theme = theme ?? {LLTheme.new};
 
 		server_control = LLServerControl.new(
 			Server.default, 
@@ -1420,7 +1499,13 @@ LivingLooper {
 		.stringColor_(theme.color_text)
 		.font_(theme.font_button)
 		.toolTip_("choose a range of output channels")
-		.action_{this.set_output_bus}
+		.action_{
+			this.set_output_bus;
+			// update panner display
+			mixers.notNil.if{mixers.do{ |m| 
+				m.panner.knob.action.()
+			}};
+		}
 		;
 
 		this.set_io_options;
@@ -1455,6 +1540,17 @@ LivingLooper {
 		.toolTip_("dry gain relative to input")
 		.value_(0);
 
+		dry_panner = LLPanner()
+		.action_{ |knob=nil, box=nil|
+			var c = this.output_picker_to_chan;
+			var n = this.output_picker_to_width;
+			box.isNil.if{ box = knob * n + c };
+			knob.isNil.if{ knob = box - c / n };
+			dry_panner.knob.value_(knob);
+			dry_panner.box.value_(box);
+			ll.notNil.if{ll.synth.set(\dry_pan, dry_panner.value)};
+		};
+
 		output_gain_knob = Knob()
 		.color_(theme.knob_colors)
 		.mode_(\vert)
@@ -1470,6 +1566,7 @@ LivingLooper {
 
 		input_gain_l = LLLabel(input_gain_knob, "Input");
 		dry_gain_l = LLLabel(dry_gain_knob, "Dry");
+		dry_pan_l = LLLabel(dry_panner, "Dry Pan");
 		output_gain_l = LLLabel(output_gain_knob, "Output");
 
 		window.isNil.if{ window = 
@@ -1506,10 +1603,11 @@ LivingLooper {
 			), stretch:0],
 			[HLayout(
 				input_gain_l.gui,
-				dry_gain_l.gui,
 				output_gain_l.gui,
+				dry_gain_l.gui,
+				dry_pan_l.gui,
 			), stretch:0],
-			ll!?{[ll.gui, stretch:1]},
+			ll!?{ll_view = View().layout_(ll.gui); [ll_view, stretch:1]},
 			mixers!?{[HLayout(*mixers.collect{ |g| g.gui}), stretch:0]}
 			// LLGUI
 			// mixers
@@ -1544,12 +1642,14 @@ LivingLooper {
 	auto { ll.auto }
 	thru { ll.thru } 
 
-	inBus { |idx|
+	setInBus { |idx|
 		input_picker.enabled_(idx.isNil);
 		in_bus_override = idx;
 		this.set_input_bus;
 	}
-	outBus { |idx|
+	setOutBus { |idx|
+		// set to multichannel mode
+		output_picker.valueAction_(output_picker.items.size-1);
 		output_picker.enabled_(idx.isNil);
 		out_bus_override = idx;
 		this.set_output_bus;
@@ -1562,61 +1662,78 @@ LivingLooper {
 
 LLPanner {
 	var <theme;
-	var knob;
-	var box;
+	var <knob;
+	var <box;
+
+	var <>action;
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
 	}
 
 	init {
-		theme = theme ? LLTheme.new;
+		theme = theme ?? {LLTheme.new};
 
 		knob = Knob()
 		.color_(theme.knob_colors)
 		.mode_(\vert)
-		.toolTip_("pan (in stereo mode)")
+		.toolTip_("pan (in stereo or multichannel mode)")
 		.value_(0.5)
-		.action_{};
+		.action_{
+			action.(knob:knob.value);
+		};
 
 		box = NumberBox()
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.normalColor_(theme.color_text)
 		.typingColor_(theme.color_alert)
-		;
+		.value_(1)
+		.maxWidth_(36)
+		.action_{
+			action.(box:box.value);
+		};
 	}
 
 	gui {
 		^ HLayout(
-			box, knob
-		)
+			[knob, align:\right], [box, align:\left]
+		)//.spacing_(0)
+	}
+
+	value {
+		^ box.value
 	}
 }
 
 LLMixer {
+	var mapper;
+	var idx;
 	var <theme;
 
 	var <>visible; // TODO
 
-	var panner;
-	var mute_button;
-	var solo_button;
+	var <panner;
+	var <mute_button;
+	var <solo_button;
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
 	}
 
 	init {
-		theme = theme ? LLTheme.new;
+		var mw = 64;
+		theme = theme ?? {LLTheme.new};
 
 		panner = LLPanner();
-		mute_button = Button()
+		mute_button = mapper.button(\mute++idx)
+		.maxWidth_(mw)
 		.states_([
 			["mute",theme.color_text,theme.color_fg],
 			["mute",theme.color_alert,theme.color_bg]])
 		;
-		solo_button = Button()
+		solo_button = mapper.button(\solo++idx)
+		.maxWidth_(mw)
 		.states_([
 			["solo",theme.color_text,theme.color_fg],
 			["solo",theme.color_yellow,theme.color_bg]])
@@ -1625,7 +1742,7 @@ LLMixer {
 
 	gui {
 		^ HLayout(
-			mute_button, solo_button, panner.gui
+			VLayout(mute_button, solo_button), panner.gui
 		)
 	}
 }
