@@ -56,7 +56,7 @@ LLLabel {
 	}
 
 	gui {
-		var align = ((item.class==Knob) || (item.class==LLPanner) ).if{\center}{\left};
+		var align = (item.isKindOf(Knob) || item.isKindOf(LLPanner)).if{\center}{\left};
 		^ VLayout(
 			[label, align:align],
 			item.class.findMethod(\gui).isNil.if{item}{item.gui}
@@ -302,13 +302,14 @@ LLServerControl {
 LLMIDIMapper {
 	var <theme;
 	var <toggle; //Button to enable MIDI mapping
+	var <clear_button; //Button to clear mappings
 	var <save_button;
 	var <load_button; //Buttons to open file dialog
 	var <ports_list; //ListView of MIDI devices
 
-	var <buttons; //IdentityDictionary of name -> Button
+	var <items; //IdentityDictionary of name -> LLMIDIButton or LLMIDIKnob
 	var <nameToKey; //IdentityDictionary of name -> MIDI info 
-	var <keyToName; //Dictionary of MIDI info -> name
+	var <keyToNames; //Dictionary of MIDI info -> Set[name]
 	var <>target; //current target of MIDI mapping
 
 	*new { |...args|
@@ -319,12 +320,16 @@ LLMIDIMapper {
 		// var label = StaticText()
 		// .string_("MIDI map:").stringColor_(theme.color_text);
 		// ^HLayout([label, align:\right], toggle, save_button, load_button)
-		^HLayout(toggle, save_button, load_button)
+		^HLayout(toggle, clear_button, save_button, load_button)
 		// ^HLayout(toggle, save_button, load_button, ports_list)
 	}
 
 	button { |name, parent, bounds|
 		^LLMIDIButton(this, name.asSymbol, parent, bounds);
+	}
+
+	knob { |name, parent, bounds|
+		^LLMIDIKnob(this, name.asSymbol, parent, bounds);
 	}
 
 	get_text { |key, text|
@@ -334,6 +339,11 @@ LLMIDIMapper {
 	}
 
 	set_states {
+		// TODO: change knob appearance somehow?
+		var buttons = items.select(_.isKindOf(LLMIDIButton));
+
+		//removed mappings may still appear in keyToNames with empty names
+
 		// reset all
 		buttons.do{ |button| 
 			var extra_text = (toggle.value==1).if{" (...)"}{""};
@@ -342,35 +352,69 @@ LLMIDIMapper {
 			}, ephemeral:true)
 		};
 
-		buttons.postln;
+		// buttons.postln;
 		// then set all in map
 		nameToKey.pairsDo{ |name, key|
 			var button = buttons.at(name.asSymbol);
-			[name, button, name.class].postln;
-			button.states_(button.initial_states.collect{ |state| 
-				[this.get_text(key, state[0])] ++ state[1..]
-			}, ephemeral:true)
+			// [name, button, name.class].postln;
+			button.notNil.if{
+				button.states_(button.initial_states.collect{ |state| 
+					[this.get_text(key, state[0])] ++ state[1..]
+				}, ephemeral:true)
+			}
 		}
 	}
 
+	remove { |target| 
+		var key = nameToKey[target];
+		key.notNil.if{
+			nameToKey.removeAt(target);
+			keyToNames[key].remove(target);
+		};
+		"removed % <- %".format(target, key).postln;
+		// nameToKey.postln;
+		// keyToNames.postln;
+	}
+
 	add { |key, target|
-		var button, miditext;
-		// map MIDI to name
-		nameToKey.put(target, key);
-		keyToName.put(key, target);
-		nameToKey.postln;
-		// modify button text
-		this.set_states;
+		target.notNil.if{
+			var newnames;
+			var oldkey = nameToKey[target];
+			// case: target -> oldkey gets replaced with target -> key
+			// target must be removed from oldkey -> [names]
+			oldkey.notNil.if{keyToNames[oldkey].remove(target)};
+			newnames = keyToNames.atFail(key,Set.new).add(target);
+			// map MIDI to name
+			nameToKey.put(target, key);
+			keyToNames.put(key, newnames);
+			// modify button text
+			this.set_states;
+			"mapped % <- %".format(target, key).postln;
+			// nameToKey.postln;
+			// keyToNames.postln;
+		}
 	}
 
 	match { |key|
-		var name = keyToName.at(key);
-		^buttons.at(name.asSymbol);
+		var names = keyToNames.at(key);
+		^ names.collect{ |name| items.at(name.asSymbol) }.select(_.notNil);
+		// var kitems = names.collect{ |name| items.at(name.asSymbol) };
+		// var filtered = kitems.select(_.notNil);
+		// [key, keyToNames].postln;
+		// [\names, names].postln;
+		// [\kitems, kitems].postln;
+		// [\filtered, filtered].postln;
+		// ^filtered;
 	}
 
 	get_endpoint { |src|
 		^ MIDIClient.sources.detect{ arg e; e.uid == src}
 		? (device:nil, name:nil);
+	}
+
+	reset {
+		nameToKey = IdentityDictionary.new;
+		keyToNames = Dictionary.new;
 	}
 
 	init {
@@ -379,9 +423,8 @@ LLMIDIMapper {
 		).parentPath).parentPath +/+ "midi";
 
 		theme = theme ?? {LLTheme.new};
-		buttons = IdentityDictionary.new;
-		nameToKey = IdentityDictionary.new;
-		keyToName = Dictionary.new;
+		items = IdentityDictionary.new;
+		this.reset;
 
 		// global MIDI map toggle -- visually changes all MIDIButtons
 		toggle = Button()
@@ -391,13 +434,25 @@ LLMIDIMapper {
 		.font_(theme.font_button)
 		.toolTip_("toggle MIDI mapping. when mapping, click a button in the GUI, and it will become associated with the next MIDI message to arrive.")
 		.action_{
-			[\TOGGLE,  toggle.identityHash, toggle.value, toggle.value.class].postln;
-			// (toggle.value==1).if{MIDIIn.connectAll};
+			// prevent accidentaly changing whatever was last mapped
+			this.target = nil;
 			// update button appearances
 			this.set_states;
 		};
-		[\CREATE, \TOGGLE,  toggle.identityHash, toggle.value, toggle.value.class].postln;
+		// [\CREATE, \TOGGLE,  toggle.identityHash, toggle.value, toggle.value.class].postln;
 
+		clear_button = Button()
+		.states_([["clear", theme.color_text, theme.color_fg]])
+		.font_(theme.font_button)
+		.toolTip_("clear all MIDI mappings; while mapping is in progress, clear the current item only.")
+		.action_{
+			(toggle.value==1).if{
+				this.remove(this.target);
+			}{
+				this.reset;
+			};
+			this.set_states;
+		};
 
 		save_button = Button()
 		.states_([["save map", theme.color_text, theme.color_fg]])
@@ -416,9 +471,12 @@ LLMIDIMapper {
 		.action_{
 			Dialog.openPanel({ |path|
 				"loading...".postln;
-				keyToName = Dictionary.new;
-				nameToKey = Object.readArchive(path).postln;
-				nameToKey.pairsDo{ |name, key| keyToName.put(key, name)};
+				this.reset;
+				nameToKey = Object.readArchive(path);//.postln;
+				nameToKey.pairsDo{ |name, key| 
+					var newnames = keyToNames.atFail(key,Set.new).add(name);
+					keyToNames.put(key, newnames)
+					};
 				this.set_states;
 			}, path:midiDir)
 		};
@@ -450,19 +508,18 @@ LLMIDIMapper {
 			// noteOn can trigger MIDI mapping
 			// noteOn sets button to state 1
 			{
-				// [endpoint, key, toggle.value].postln;	
-				[\MIDI, \TOGGLE, toggle.identityHash, toggle.value, toggle.value.class].postln;
-
+				// [endpoint, key, toggle.value, this.target, this.target.class].postln;	
 				(toggle.value==1).if{
-					// when mapping is toggled on, a MIDI handler associates 
-					// incoming messages type/value/chan/src with the target button
-					[\add, this.target].postln;
-					this.add(key, this.target);
+					// when mapping is toggled on, associate 
+					// incoming message type/value/chan/src with the target
+					// NoteOn maps to buttons only
+					items[this.target].isKindOf(LLMIDIButton).if{
+						this.add(key, this.target);
+					}
 				}{
 					// when toggled off, a MIDI handler dispatches mapped message type/value/src to buttons
-					var button = this.match(key);
-					[\dispatch, button].postln;
-					button.notNil.if{
+					var buttons = this.match(key);
+					buttons.do{ |button|
 						button.valueAction_(1);
 					}
 				}
@@ -474,8 +531,8 @@ LLMIDIMapper {
 			var key = [\note, num, chan+1, endpoint.device, endpoint.name];
 			// noteOff sets button to state 0
 			{
-				var button = this.match(key);
-				button.notNil.if{
+				var buttons = this.match(key);
+				buttons.do{ |button|
 					button.valueAction_(0);
 				}
 			}.defer;
@@ -485,18 +542,24 @@ LLMIDIMapper {
 			var endpoint = this.get_endpoint(src);
 			var key = [\control, num, chan+1, endpoint.device, endpoint.name];
 			// controlChange can trigger MIDI mapping
-			// controlChange toggles button 
 			{
 				(this.toggle.value==1).if{
-					// when mapping is toggled on, a MIDI handler associates 
-					// incoming messages type/value/chan/src with the target button
+					// when mapping is toggled on, associate 
+					// incoming message type/value/chan/src with the target
 					this.add(key, this.target);
+					// [key, this.target, keyToNames].postln;
 				}{
-					// when toggled off, a MIDI handler dispatches mapped message type/value/src to buttons
-					var button = this.match(key);
-					button.notNil.if{
-						button.valueAction_(button.value + 1 % button.states.size);
-					}
+					// when mapping is toggled off, dispatch to mapped items
+					var kitems = this.match(key);
+					// [key, keyToNames, kitems].postln;
+					// buttons advance to next state
+					kitems.select(_.isKindOf(LLMIDIButton)).do{ |item|
+						item.valueAction_(item.value + 1 % item.states.size);
+					};
+					// knobs get the CC value scaled to 0-1
+					kitems.select(_.isKindOf(LLMIDIKnob)).do{ |item|
+						item.valueAction_(val/127);
+					};
 				}
 			}.defer;
 		}, msgType:\control).permanent_(true);
@@ -505,35 +568,38 @@ LLMIDIMapper {
 			var endpoint = this.get_endpoint(src);
 			var key = [\program, num, chan+1, endpoint.device, endpoint.name];
 			// programChange can trigger MIDI mapping
-			// programChange toggles button 
 			{
 				(toggle.value==1).if{
-					// when mapping is toggled on, a MIDI handler associates 
-					// incoming messages type/value/chan/src with the target button
-					this.add(key, this.target);
+					// when mapping is toggled on, associate 
+					// incoming message type/value/chan/src with the target
+					// ProgramChange maps to buttons only
+					items[this.target].isKindOf(LLMIDIButton).if{
+						this.add(key, this.target);
+					}
 				}{
-					// when toggled off, a MIDI handler dispatches mapped message type/value/src to buttons
-					var button = this.match(key);
-					button.notNil.if{
+					// when mapping is toggled off, dispatch to mapped item
+					var buttons = this.match(key);
+					buttons.do{ |button|
 						button.valueAction_(button.value + 1 % button.states.size);
 					}
 				}
 			}.defer;
 		}, msgType:\program).permanent_(true);
 	}
-
-
 }
 
 LLMIDIButton : Button {
 	var <>mapper; 
 	var <>name;
 	var <initial_states;
+	var <wrapped_action;
 
 	*new { |mapper, name, parent, bounds| 
 		var inst = super.new(parent, bounds).mapper_(mapper).name_(name.asSymbol);
-		[parent, bounds, mapper, name].postln;
-		mapper.buttons.add(name -> inst);
+		// [parent, bounds, mapper, name].postln;
+		mapper.items.add(name -> inst);
+		inst.action_{};
+		inst.focusGainedAction_{};
 		^inst
 	}
 
@@ -542,7 +608,14 @@ LLMIDIButton : Button {
 		^super.states_(states)
 	}
 
+	valueAction_{ |v|
+		// valueAction_ does not trigger MIDI mapping
+		this.value_(v);
+		^wrapped_action.(this);
+	}
+
 	action_{ |fn|
+		wrapped_action = fn;
 		^super.action_{ |...args|
 			// when toggled on, buttons are disabled, 
 			// and clicking a button registers it as the target of MIDI mapping
@@ -552,11 +625,78 @@ LLMIDIButton : Button {
 				this.mapper.target = this.name;
 				"mapping '%'...".format(this.name).postln;
 			}{
-				fn.(*args)
+				wrapped_action.(*args)
 			}
 		}
 	}
 
+	focusGainedAction_{ |fn|
+		^super.focusGainedAction_{ |...args|
+			// when toggled on, buttons are disabled, 
+			// and clicking a button registers it as the target of MIDI mapping
+			(this.mapper.toggle.value==1).if{
+				this.mapper.target = this.name;
+				"mapping '%'...".format(this.name).postln;
+			}{
+				fn.(*args)
+			}
+		}
+	}
+}
+
+LLMIDIKnob : Knob {
+	var <>mapper; 
+	var <>name;
+	// var <initial_states;
+	// var <wrapped_action;
+
+	*new { |mapper, name, parent, bounds| 
+		var inst = super.new(parent, bounds).mapper_(mapper).name_(name.asSymbol);
+		// [parent, bounds, mapper, name].postln;
+		mapper.items.add(name -> inst);
+		// inst.action_{};
+		inst.focusGainedAction_{};
+		^inst
+	}
+
+	// states_{ |states, ephemeral=false| 
+		// ephemeral.not.if{initial_states = states};
+		// ^super.states_(states)
+	// }
+
+	// valueAction_{ |v|
+	// 	// valueAction_ does not trigger MIDI mapping
+	// 	this.value_(v);
+	// 	^wrapped_action.(this);
+	// }
+
+	// action_{ |fn|
+	// 	wrapped_action = fn;
+	// 	^super.action_{ |...args|
+	// 		// when mapper is toggled on, 
+	// 		// clicking a knob registers it as the target of MIDI mapping
+	// 		(this.mapper.toggle.value==1).if{
+	// 			// TODO: reset to last value before mapper was toggled on here?
+	// 			this.mapper.target = this.name;
+	// 			"mapping '%'...".format(this.name).postln;
+	// 		}{
+	// 			wrapped_action.(*args)
+	// 		}
+	// 	}
+	// }
+	
+	focusGainedAction_{ |fn|
+		^super.focusGainedAction_{ |...args|
+			// when toggled on, buttons are disabled, 
+			// and clicking a button registers it as the target of MIDI mapping
+			(this.mapper.toggle.value==1).if{
+				this.mapper.target = this.name;
+				"mapping '%'...".format(this.name).postln;
+			}{
+				fn.(*args)
+			}
+		}
+	}
 }
 
 LLUtil {
@@ -916,7 +1056,7 @@ LivingLooperGUI {
 		theme = theme ?? {LLTheme.new};
 
 		mapper = mapper ?? {LLMIDIMapper.new};
-		[\MAPPER, mapper.identityHash, mapper.toggle.identityHash].postln;
+		// [\MAPPER, mapper.identityHash, mapper.toggle.identityHash].postln;
 
 
 		// loop buttons start / end recording
@@ -1447,7 +1587,7 @@ LivingLooper {
 		force_dl = false;
 
 		mapper = mapper ?? {LLMIDIMapper.new};
-		[\MAPPER, mapper.identityHash, mapper.toggle.identityHash].postln;
+		// [\MAPPER, mapper.identityHash, mapper.toggle.identityHash].postln;
 		theme = theme ?? {LLTheme.new};
 
 		server_control = LLServerControl.new(
@@ -1522,7 +1662,7 @@ LivingLooper {
 			.stringColor_(theme.color_highlight)
 			.font_(Font("Helvetica", 32));
 
-		input_gain_knob = Knob()
+		input_gain_knob = mapper.knob(\input_gain)
 		.color_(theme.knob_colors)
 		.mode_(\vert)
 		.action_{
@@ -1531,7 +1671,7 @@ LivingLooper {
 		.toolTip_("input gain")
 		.value_(0.5);
 
-		dry_gain_knob = Knob()
+		dry_gain_knob = mapper.knob(\dry_gain)
 		.color_(theme.knob_colors)
 		.mode_(\vert)
 		.action_{
@@ -1540,7 +1680,7 @@ LivingLooper {
 		.toolTip_("dry gain relative to input")
 		.value_(0);
 
-		dry_panner = LLPanner()
+		dry_panner = LLPanner(mapper, \_dry)
 		.action_{ |knob=nil, box=nil|
 			var c = this.output_picker_to_chan;
 			var n = this.output_picker_to_width;
@@ -1551,7 +1691,7 @@ LivingLooper {
 			ll.notNil.if{ll.synth.set(\dry_pan, dry_panner.value)};
 		};
 
-		output_gain_knob = Knob()
+		output_gain_knob = mapper.knob(\output_gain)
 		.color_(theme.knob_colors)
 		.mode_(\vert)
 		.action_{
@@ -1617,8 +1757,10 @@ LivingLooper {
 	// programmatic control from sclang
 
 	inputGain { |gain| input_gain_knob.valueAction_(gain) }
-	dryGain { |gain| dry_gain_knob.valueAction_(gain) }
 	outputGain { |gain| output_gain_knob.valueAction_(gain) }
+	dryGain { |gain| dry_gain_knob.valueAction_(gain) }
+	dryPan { |pan| dry_panner.knob.valueAction_(pan) }
+	dryChan { |ch| dry_panner.box.valueAction_(ch) }
 	load { |path| 
 		// check if path already in picker
 		var idx = model_picker.items.indexOfEqual(path);
@@ -1642,6 +1784,11 @@ LivingLooper {
 	auto { ll.auto }
 	thru { ll.thru } 
 
+	// mute { |idx| } //TODO default toggle, optional value
+	// solo { |idx| } //TODO default toggle, optional value
+	loopPan { |idx, pan| mixers[idx-1].panner.knob.valueAction_(pan)} 
+	loopChan { |idx, ch| mixers[idx-1].panner.box.valueAction_(ch)} 
+
 	setInBus { |idx|
 		input_picker.enabled_(idx.isNil);
 		in_bus_override = idx;
@@ -1661,6 +1808,8 @@ LivingLooper {
 }
 
 LLPanner {
+	var mapper;
+	var name;
 	var <theme;
 	var <knob;
 	var <box;
@@ -1674,7 +1823,7 @@ LLPanner {
 	init {
 		theme = theme ?? {LLTheme.new};
 
-		knob = Knob()
+		knob = mapper.knob(\pan++name)
 		.color_(theme.knob_colors)
 		.mode_(\vert)
 		.toolTip_("pan (in stereo or multichannel mode)")
@@ -1708,7 +1857,7 @@ LLPanner {
 
 LLMixer {
 	var mapper;
-	var idx;
+	var name;
 	var <theme;
 
 	var <>visible; // TODO
@@ -1725,14 +1874,14 @@ LLMixer {
 		var mw = 64;
 		theme = theme ?? {LLTheme.new};
 
-		panner = LLPanner();
-		mute_button = mapper.button(\mute++idx)
+		panner = LLPanner(mapper, name);
+		mute_button = mapper.button(\mute++name)
 		.maxWidth_(mw)
 		.states_([
 			["mute",theme.color_text,theme.color_fg],
 			["mute",theme.color_alert,theme.color_bg]])
 		;
-		solo_button = mapper.button(\solo++idx)
+		solo_button = mapper.button(\solo++name)
 		.maxWidth_(mw)
 		.states_([
 			["solo",theme.color_text,theme.color_fg],
