@@ -309,8 +309,10 @@ LLMIDIMapper {
 
 	var <items; //IdentityDictionary of name -> LLMIDIButton or LLMIDIKnob
 	var <nameToKey; //IdentityDictionary of name -> MIDI info 
-	var <keyToNames; //Dictionary of MIDI info -> Set[name]
+	// var <keyToNames; //Dictionary of MIDI info -> Set[name]
 	var <>target; //current target of MIDI mapping
+
+	var use_port = false;
 
 	*new { |...args|
 		^super.newCopyArgs(*args).init;
@@ -333,9 +335,13 @@ LLMIDIMapper {
 	}
 
 	get_text { |key, text|
-		// var miditext = "%:% ch:% port:%".format(*key);
-		var miditext = "%:% ch:% % %".format(*key);
-		^ text ++ " (%)".format(miditext);
+		// var miditext = "%:% ch:% port:%".format(*key);	
+		var miditext = use_port.if{
+			"%:% ch:% % %".format(*key);
+		}{
+			"%:% ch:%".format(*key[(..2)])
+		};
+		^ "% (%)".format(text, miditext);
 	}
 
 	set_states {
@@ -349,7 +355,14 @@ LLMIDIMapper {
 			var extra_text = (toggle.value==1).if{" (...)"}{""};
 			button.states_(button.initial_states.collect{ |state| 
 				[state[0]++extra_text] ++ state[1..]
-			}, ephemeral:true)
+			}, ephemeral:true);
+		};
+
+		items.do{ |item|
+			var extra_text = (toggle.value==1).if{" (...)"}{""};
+			item.initial_tooltip.notNil.if{
+				item.toolTip_(item.initial_tooltip++extra_text, ephemeral:true)
+			}
 		};
 
 		// buttons.postln;
@@ -359,34 +372,46 @@ LLMIDIMapper {
 			// [name, button, name.class].postln;
 			button.notNil.if{
 				button.states_(button.initial_states.collect{ |state| 
-					[this.get_text(key, state[0])] ++ state[1..]
-				}, ephemeral:true)
+					var text = state[0];
+					var newtext = this.get_text(key, text);
+					// newtext = newtext.padLeft(newtext.size*2 - text.size, "-");
+					[newtext] ++ state[1..]
+				}, ephemeral:true);
 			}
-		}
+		};
+
+		nameToKey.pairsDo{ |name, key|
+			var item = items.at(name.asSymbol);
+			item.notNil.if{item.initial_tooltip.notNil.if{
+				item.toolTip_(
+					this.get_text(key, item.initial_tooltip), ephemeral:true)
+			}}
+		};
 	}
 
 	remove { |target| 
 		var key = nameToKey[target];
+		// nameToKey.removeAt(target);
 		key.notNil.if{
 			nameToKey.removeAt(target);
-			keyToNames[key].remove(target);
+			// keyToNames[key].remove(target);
+			"removed % <- %".format(target, key).postln;
 		};
-		"removed % <- %".format(target, key).postln;
 		// nameToKey.postln;
 		// keyToNames.postln;
 	}
 
 	add { |key, target|
 		target.notNil.if{
-			var newnames;
-			var oldkey = nameToKey[target];
+			// var newnames;
+			// var oldkey = nameToKey[target];
 			// case: target -> oldkey gets replaced with target -> key
 			// target must be removed from oldkey -> [names]
-			oldkey.notNil.if{keyToNames[oldkey].remove(target)};
-			newnames = keyToNames.atFail(key,Set.new).add(target);
+			// oldkey.notNil.if{keyToNames[oldkey].remove(target)};
+			// newnames = keyToNames.atFail(key,Set.new).add(target);
 			// map MIDI to name
 			nameToKey.put(target, key);
-			keyToNames.put(key, newnames);
+			// keyToNames.put(key, newnames);
 			// modify button text
 			this.set_states;
 			"mapped % <- %".format(target, key).postln;
@@ -396,7 +421,16 @@ LLMIDIMapper {
 	}
 
 	match { |key|
-		var names = keyToNames.at(key);
+		// .keys refers to the keys of the dict, which are names...
+		// should rename 'key' to 'event'
+		var names = nameToKey.select{ |k| 
+			use_port.not.if{
+				k = k[(..2)];
+				key = key[(..2)];
+			};
+			k==key 
+		}.keys;
+		// var names = keyToNames.at(key);
 		^ names.collect{ |name| items.at(name.asSymbol) }.select(_.notNil);
 		// var kitems = names.collect{ |name| items.at(name.asSymbol) };
 		// var filtered = kitems.select(_.notNil);
@@ -414,7 +448,7 @@ LLMIDIMapper {
 
 	reset {
 		nameToKey = IdentityDictionary.new;
-		keyToNames = Dictionary.new;
+		// keyToNames = Dictionary.new;
 	}
 
 	init {
@@ -473,10 +507,10 @@ LLMIDIMapper {
 				"loading...".postln;
 				this.reset;
 				nameToKey = Object.readArchive(path);//.postln;
-				nameToKey.pairsDo{ |name, key| 
-					var newnames = keyToNames.atFail(key,Set.new).add(name);
-					keyToNames.put(key, newnames)
-					};
+				// nameToKey.pairsDo{ |name, key| 
+					// var newnames = keyToNames.atFail(key,Set.new).add(name);
+					// keyToNames.put(key, newnames)
+					// };
 				this.set_states;
 			}, path:midiDir)
 		};
@@ -592,6 +626,7 @@ LLMIDIButton : Button {
 	var <>mapper; 
 	var <>name;
 	var <initial_states;
+	var <initial_tooltip;
 	var <wrapped_action;
 
 	*new { |mapper, name, parent, bounds| 
@@ -606,6 +641,11 @@ LLMIDIButton : Button {
 	states_{ |states, ephemeral=false| 
 		ephemeral.not.if{initial_states = states};
 		^super.states_(states)
+	}
+
+	toolTip_{ |text, ephemeral=false| 
+		ephemeral.not.if{initial_tooltip = text};
+		^super.toolTip_(text)
 	}
 
 	valueAction_{ |v|
@@ -648,6 +688,7 @@ LLMIDIKnob : Knob {
 	var <>mapper; 
 	var <>name;
 	// var <initial_states;
+	var <initial_tooltip;
 	// var <wrapped_action;
 
 	*new { |mapper, name, parent, bounds| 
@@ -663,6 +704,11 @@ LLMIDIKnob : Knob {
 		// ephemeral.not.if{initial_states = states};
 		// ^super.states_(states)
 	// }
+
+	toolTip_{ |text, ephemeral=false| 
+		ephemeral.not.if{initial_tooltip = text};
+		^super.toolTip_(text)
+	}
 
 	// valueAction_{ |v|
 	// 	// valueAction_ does not trigger MIDI mapping
@@ -1305,7 +1351,7 @@ LivingLooper {
 
 	var hsize = 1200;
 	var vsize_init = 150;
-	var vsize_default = 560;
+	var vsize_default = 600;
 
 	var window_size_unset = true;
 
@@ -1734,9 +1780,9 @@ LivingLooper {
 					// model_picker_l.gui,
 					HLayout(model_picker_l.gui, force_dl_button),
 					HLayout(
-						input_picker_l.gui,
+						VLayout(nil, input_picker_l.gui, nil),
 						meter_view,
-						output_picker_l.gui
+						VLayout(nil, output_picker_l.gui, nil)
 					)
 				), stretch:1, align:\center],
 				[server_control.gui, stretch:0],
@@ -1747,11 +1793,11 @@ LivingLooper {
 				dry_gain_l.gui,
 				dry_pan_l.gui,
 			), stretch:0],
-			ll!?{ll_view = View().layout_(ll.gui); [ll_view, stretch:1]},
+			ll!?{ll_view = View().layout_(ll.gui.margins_(0)); [ll_view, stretch:1]},
 			mixers!?{[HLayout(*mixers.collect{ |g| g.gui}), stretch:0]}
 			// LLGUI
 			// mixers
-		)
+		).spacing_(theme.spacing)
 	}
 
 	// programmatic control from sclang
@@ -1871,7 +1917,7 @@ LLMixer {
 	}
 
 	init {
-		var mw = 64;
+		var mw = 180;
 		theme = theme ?? {LLTheme.new};
 
 		panner = LLPanner(mapper, name);
@@ -1880,18 +1926,20 @@ LLMixer {
 		.states_([
 			["mute",theme.color_text,theme.color_fg],
 			["mute",theme.color_alert,theme.color_bg]])
+		.toolTip_("mute loop without stopping it")
 		;
 		solo_button = mapper.button(\solo++name)
 		.maxWidth_(mw)
 		.states_([
 			["solo",theme.color_text,theme.color_fg],
 			["solo",theme.color_yellow,theme.color_bg]])
+		.toolTip_("solo loop without stopping others")
 		;
 	}
 
 	gui {
 		^ HLayout(
-			VLayout(mute_button, solo_button), panner.gui
+			VLayout(mute_button, solo_button).spacing_(theme.spacing), panner.gui
 		)
 	}
 }
