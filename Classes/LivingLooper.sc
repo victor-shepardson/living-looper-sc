@@ -1830,11 +1830,13 @@ LivingLooper {
 	auto { ll.auto }
 	thru { ll.thru } 
 
-	// mute { |idx| } //TODO default toggle, optional value
-	// solo { |idx| } //TODO default toggle, optional value
-	loopPan { |idx, pan| mixers[idx-1].panner.knob.valueAction_(pan)} 
-	loopChan { |idx, ch| mixers[idx-1].panner.box.valueAction_(ch)} 
-
+	// mixer 
+	mute { |idx, val=1| mixers[idx-1].mute_button.valueAction_(val.asInteger) } 
+	solo { |idx, val=1| mixers[idx-1].solo_button.valueAction_(val.asInteger) }
+	loopPan { |idx, pan| mixers[idx-1].panner.knob.valueAction_(pan) } 
+	loopChan { |idx, ch| mixers[idx-1].panner.box.valueAction_(ch) } 
+	
+	// io
 	setInBus { |idx|
 		input_picker.enabled_(idx.isNil);
 		in_bus_override = idx;
@@ -1847,9 +1849,7 @@ LivingLooper {
 		out_bus_override = idx;
 		this.set_output_bus;
 	}
-
 	getLoopBus { ^ ll.loops_bus }
-
 	asTarget { ^ ll.synth.asTarget }
 }
 
