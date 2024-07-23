@@ -255,24 +255,34 @@ LLServerControl {
 		.maxWidth_(boxwidth)
 		.toolTip_("set supercollider control block size (requires audio restart)");
 
-		indevice_drop = PopUpMenu()
-		.items_(ServerOptions.inDevices)
+		
+		indevice_drop = PopUpMenu();
+		outdevice_drop = PopUpMenu();
+
+		try{
+			indevice_drop.items_(ServerOptions.inDevices)
+			.action_{ on_device_change.value };
+			outdevice_drop.items_(ServerOptions.outDevices)
+			.action_{ on_device_change.value };
+		}{
+			indevice_drop.items_(["JACK input"]).enabled_(false);	
+			outdevice_drop.items_(["JACK output"]).enabled_(false);
+		};
+
+		indevice_drop
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.font_(theme.font_button)
 		.maxWidth_(dropwidth)
 		.toolTip_("set input device (requires audio restart)")
-		.action_{ on_device_change.value }
 		;
 
-		outdevice_drop = PopUpMenu()
-		.items_(ServerOptions.outDevices)
+		outdevice_drop
 		.background_(theme.color_bg)
 		.stringColor_(theme.color_text)
 		.font_(theme.font_button)
 		.maxWidth_(dropwidth)
 		.toolTip_("set output device (requires audio restart)")
-		.action_{ on_device_change.value }
 		;
 
 		indevice_l = LLLabel(indevice_drop, "input device");
