@@ -1356,6 +1356,7 @@ LivingLooper {
 
 	var in_bus_override;
 	var out_bus_override;
+	var out_bus_channels;
 
 	// var midi_state;
 
@@ -1604,7 +1605,7 @@ LivingLooper {
 	output_picker_to_chan {
 		var i = output_picker.value;
 		var n = output_picker.items.size;
-		var c = (n/2).asInteger;
+		var c = this.get_output_channels;
 		// first N are mono,
 		// next N-1 are stereo,
 		// last is multichannel
@@ -1613,7 +1614,7 @@ LivingLooper {
 	output_picker_to_width {
 		var i = output_picker.value;
 		var n = output_picker.items.size;
-		var c = n/2;
+		var c = this.get_output_channels;
 		// [i,n,c].postln;
 		^(i==(n-1)).if{c-1}{(i/c).asInteger}
 	}
@@ -1622,6 +1623,9 @@ LivingLooper {
 	}
 	set_output_bus {
 		ll.notNil.if{ll.synth.set(\outbus, this.get_output_bus)}
+	}
+	get_output_channels {
+		^ out_bus_channels ? (output_picker.items.size/2).asInteger
 	}
 
 	init {
@@ -1841,7 +1845,14 @@ LivingLooper {
 	thru { ll.thru } 
 
 	// mixer 
-	mute { |idx, val=1| mixers[idx-1].mute_button.valueAction_(val.asInteger) } 
+	mute { |idx, val| 
+		var button = mixers[idx-1].mute_button;
+		{val.isNil.if{
+			button.valueAction_(1-button.value)
+		}{
+			button.valueAction_(val.asInteger)
+		}}.defer
+	} 
 	solo { |idx, val=1| mixers[idx-1].solo_button.valueAction_(val.asInteger) }
 	loopPan { |idx, pan| mixers[idx-1].panner.knob.valueAction_(pan) } 
 	loopChan { |idx, ch| mixers[idx-1].panner.box.valueAction_(ch) } 
@@ -1852,12 +1863,20 @@ LivingLooper {
 		in_bus_override = idx;
 		this.set_input_bus;
 	}
-	setOutBus { |idx|
+	setOutBus { |bus|
 		// set to multichannel mode
 		output_picker.valueAction_(output_picker.items.size-1);
-		output_picker.enabled_(idx.isNil);
-		out_bus_override = idx;
+		output_picker.enabled_(bus.isNil);
+		// bus.isKindOf(Bus).if{bus.numChannels.do{|i| this.loopChan(i+1,i+1)}};
+		bus.isKindOf(Bus).if{
+			out_bus_override = bus.index;
+			out_bus_channels = bus.numChannels;
+		}{
+			out_bus_override = bus;
+		};
+
 		this.set_output_bus;
+
 	}
 	getLoopBus { ^ ll.loops_bus }
 	asTarget { ^ ll.synth.asTarget }
