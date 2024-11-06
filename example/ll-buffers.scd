@@ -119,6 +119,8 @@ s.waitForBoot{
 			// \end, Ndef((\bufrecord_++i).asSymbol));
 	};
 
+	~ll.setInBus(Ndef((\pre).asSymbol).bus.index);
+
 	~bufrecordt = 0!n;
 	~buflen = 0!n;
 	~bufrecord = { |i|
