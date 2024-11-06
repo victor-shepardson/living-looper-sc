@@ -2,7 +2,6 @@
 // and contains an experiment in storing recordings in buffers,
 // which can be later re-recorded into living loops
 
-
 (
 s.options.numInputBusChannels = 8;
 s.options.numOutputBusChannels = 4;
@@ -169,14 +168,27 @@ s.waitForBoot{
 		);
 		Limiter.ar(mix++[dry]++loops, \limit.kr(-3).dbamp);
 	}).play;
-}
+
+})
+
+// set to thru mode so you can hear the re-looping
+~ll.thru
+
+// start recording loop 1
+(
+~ll.record(1);
+~bufrecord.(1);
 )
 
+// end recording loop 1
+(
+~ll.end(1);
+~bufend.(1);
+)
 
-Ndef(\post).set(\haasms, 30e-3, \haasgain, 0.15)
+// re-create loop 1 from the last recording
+~reloop.(1);
 
-// r = Recorder(s).record(numChannels:7)
+
 r = Recorder(s).record(bus:Ndef(\post).bus, numChannels:7)
 r.stopRecording
-
-Server.killAll
