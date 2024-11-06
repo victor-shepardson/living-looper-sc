@@ -906,12 +906,12 @@ LivingLooperCore {
 		}
 	}}
 
-	*ar { |name, input, loop=0, thru=0, auto=0, blockSize=nil|
+	*ar { |name, input, loop=0, thru=0, auto=0, blockSize=(-1)|
 		var out, zs; 
 		var method = NN(name, \forward_with_latents);
 		var out_zs = method.ar(
 			input,
-			blockSize,
+			bufferSize:blockSize,
 			debug:1,
 			attributes:[
 				loop_index: loop, // loop index
@@ -1073,7 +1073,7 @@ LivingLooperGUI {
 
 	// var <gui;
 
-	ar { |input, blockSize=nil|
+	ar { |input, blockSize=(-1)|
 		var out, zs; 
 		var mx, tr;
 		# out, zs = LivingLooperCore.ar(
@@ -1330,11 +1330,12 @@ LivingLooper {
 // including server control, model loading, input and output routing
 	var target;
 	var addAction;
+	var blockSize;
 	var <mapper;
 	var <theme;
 	var <window;
 	var server_control;
-	var model_picker;
+	var <model_picker;
 	var input_picker;
 	var output_picker;
 	var meter_view;
@@ -1448,12 +1449,13 @@ LivingLooper {
 			// };
 			// create Synth on the server
 			ll.synth = SynthDef(\ll++ll.id, {
+				// NOTE not a good idea to set nchan from the server settings
 				var nchan = server_control.server.options.numOutputBusChannels;
 				var in = 
-					In.ar(\inbus.kr(this.get_input_bus))
+					InFeedback.ar(\inbus.kr(this.get_input_bus))
 					* \input_gain.kr(input_gain_knob.value);
 				var loops = 
-					ll.ar(in, blockSize:nil)
+					ll.ar(in, blockSize:blockSize)
 					* \gate.kr(this.get_gates);
 
 				var mix = Mix(PanAz.ar(
@@ -1859,6 +1861,7 @@ LivingLooper {
 	
 	// io
 	setInBus { |idx|
+		// \setinbus.postln;
 		input_picker.enabled_(idx.isNil);
 		in_bus_override = idx;
 		this.set_input_bus;
