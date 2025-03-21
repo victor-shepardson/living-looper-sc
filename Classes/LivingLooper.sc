@@ -261,8 +261,12 @@ LLServerControl {
 
 		try{
 			indevice_drop.items_(ServerOptions.inDevices)
+			.value_(ServerOptions.inDevices.indexOfEqual(
+				server.options.inDevice)?0)
 			.action_{ on_device_change.value };
 			outdevice_drop.items_(ServerOptions.outDevices)
+			.value_(ServerOptions.outDevices.indexOfEqual(
+				server.options.outDevice)?0)
 			.action_{ on_device_change.value };
 		}{
 			indevice_drop.items_(["JACK input"]).enabled_(false);	
