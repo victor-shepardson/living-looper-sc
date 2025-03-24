@@ -12,11 +12,10 @@ s.options.blockSize = 128;
 // s.options.inDevice = "MacBook Pro Microphone";
 // s.options.outDevice = "MacBook Pro Speakers";
 // s.options.outDevice = "External Headphones";
-s.options.inDevice = "K-Mix";
-s.options.outDevice = "K-Mix";
+// s.options.inDevice = "K-Mix";
+// s.options.outDevice = "K-Mix";
 s.options.numWireBufs = 512;
 s.options.memSize = 65536 * 4;
-
 // NdefMixer(s);
 
 s.waitForBoot{
@@ -24,7 +23,9 @@ s.waitForBoot{
 	// ~ll.load("/Users/victor/living-looper/ll_gtr017norm_l4_z26.ts");
 	// ~ll.load("/Users/victor/living-looper/ll_gtr-test_l4_z26.ts");
 	// ~ll.load("/Users/victor/living-looper/ll_gtr-test-primes_l4_z26.ts");
-	~ll.model_picker.valueAction_(1);
+	// ~ll.load("/Users/victor/living-looper/ll_voice-test-ipls-spherelin_l4_z11.ts");
+	~ll.load("/Users/victor/living-looper/ll_gtr-test-ipls-spherelin_l4_z26.ts");
+	// ~ll.model_picker.valueAction_(1);
 
 	// n = ~ll.ll.nLoops; // TODO: LL starts asynchronously but nLoops not available until nn~ model is loaded
 	n = 4;
@@ -79,7 +80,6 @@ s.waitForBoot{
 	~ll.setOutBus(~bus);
 
 	Ndef(\pre, {
-		var mix, verb;
 		var dry = SoundIn.ar(0);
 		dry
 	});

@@ -904,6 +904,7 @@ LivingLooperCore {
 		"loading % from %".format(name, filename).postln;
 		Server.default.serverRunning.if{
 			NN.load(name, filename);
+			Server.default.sync;
 			NN(name).describe;
 		}{
 			"WARNING: server not running".postln;
