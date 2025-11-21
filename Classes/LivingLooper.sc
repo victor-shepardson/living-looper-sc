@@ -1391,8 +1391,8 @@ LivingLooper {
 		}{
 			var input_rec = Recorder(server_control.server).filePrefix_("ll_input_");
 			var loops_rec = Recorder(server_control.server).filePrefix_("ll_loops_");
-			input_rec.record(bus:this.ll.loops_bus.index, numChannels:this.ll.nLoops);
-			loops_rec.record(bus:this.get_input_bus, numChannels:1);
+			input_rec.record(bus:this.get_input_bus, numChannels:1);
+			loops_rec.record(bus:this.ll.loops_bus.index, numChannels:this.ll.nLoops);
 			^(
 				stopRecording: {input_rec.stopRecording; loops_rec.stopRecording},
 				loopRecorder: loops_rec,
