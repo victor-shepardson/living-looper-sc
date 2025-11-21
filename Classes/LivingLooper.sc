@@ -1340,6 +1340,7 @@ LivingLooper {
 	var <theme;
 	var <window;
 	var server_control;
+	var record_control;
 	var <model_picker;
 	var input_picker;
 	var output_picker;
@@ -1355,6 +1356,8 @@ LivingLooper {
 	var dry_gain_l;
 	var dry_pan_l;
 	var output_gain_l;
+
+	var recorders; //Event wrapping pair of Recorder
 
 	var title_main, title_sub;
 	var <ll;
@@ -1378,6 +1381,24 @@ LivingLooper {
 		// "OMP_NUM_THREADS".setenv("8");
 
 		^super.newCopyArgs(*args).init;
+	}
+
+	record_audio {
+		// record two files: mono input, multichannel loops
+		ll.isNil.if{
+			"ERROR: LivingLooper: start audio before recording".postln;
+			^nil
+		}{
+			var input_rec = Recorder(server_control.server).filePrefix_("ll_input_");
+			var loops_rec = Recorder(server_control.server).filePrefix_("ll_loops_");
+			input_rec.record(bus:this.ll.loops_bus.index, numChannels:this.ll.nLoops);
+			loops_rec.record(bus:this.get_input_bus, numChannels:1);
+			^(
+				stopRecording: {input_rec.stopRecording; loops_rec.stopRecording},
+				loopRecorder: loops_rec,
+				inputRecorder: input_rec
+			)
+		}
 	}
 
 	make_meter {
@@ -1657,11 +1678,28 @@ LivingLooper {
 		// [\MAPPER, mapper.identityHash, mapper.toggle.identityHash].postln;
 		theme = theme ?? {LLTheme.new};
 
-		server_control = LLServerControl.new(
+		server_control = LLServerControl(
 			Server.default, 
 			{r.reset; r.play(AppClock)},
 			{/* on device change */}
 		);
+
+		record_control = Button()
+		.states_([
+			["record", theme.color_alert, theme.color_fg],
+			["stop\nrecord", theme.color_dark, theme.color_alert]])
+		.font_(theme.font_button)
+		.toolTip_("record input and loop audio to disk")
+		.maxWidth_(50)
+		.minHeight_(50)
+		.action_{
+			(record_control.value==1).if{
+				recorders = this.record_audio;
+				recorders.isNil.if{record_control.value_(0)};
+			}{
+				recorders.stopRecording;
+			}
+		};
 
 		model_picker = PopUpMenu()
 		.allowsReselection_(true)
@@ -1813,6 +1851,7 @@ LivingLooper {
 				output_gain_l.gui,
 				dry_gain_l.gui,
 				dry_pan_l.gui,
+				record_control
 			), stretch:0],
 			ll!?{ll_view = View().layout_(ll.gui.margins_(0)); [ll_view, stretch:1]},
 			mixers!?{[HLayout(*mixers.collect{ |g| g.gui}), stretch:0]}
