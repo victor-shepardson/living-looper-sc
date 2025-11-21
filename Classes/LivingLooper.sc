@@ -1763,7 +1763,7 @@ LivingLooper {
 			.stringColor_(theme.color_highlight)
 			.font_(Font("Helvetica", 60));
 		title_sub =	StaticText()
-			.string_("v1.2.0")
+			.string_("v1.2.1")
 			.stringColor_(theme.color_highlight)
 			.font_(Font("Helvetica", 32));
 
